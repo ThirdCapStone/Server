@@ -1,4 +1,4 @@
-from typing import List, Tuple
+from typing import List, Dict, Union
 from datetime import datetime
 from bs4 import BeautifulSoup
 from enum import Enum
@@ -16,7 +16,7 @@ class CrawlerResponse(Enum):
 class MovieTicketRankCrawler:
     
     @staticmethod
-    def load_info() -> List[Tuple[int, str, datetime, float, str, str, str, str, datetime]]:
+    def load_info() -> List[Union[Dict[str, int], Dict[str, str], Dict[str, datetime], Dict[str, float]]]:
         url = "https://www.kobis.or.kr/kobis/business/stat/boxs/findRealTicketList.do"
         
         formdata = {
@@ -48,7 +48,13 @@ class MovieTicketRankCrawler:
                 ticketing_audience_sum = tds[7].text
                 search_date = datetime.now()
                 
-                return_list.append((rank, title, release_date, ticketing_rate, ticketing_sales, ticketing_sales_sum, ticketing_audience, ticketing_audience_sum, search_date))
+                return_dict = dict()
+                return_type_list = "rank title release_date ticketing_rate ticketing_sales ticketing_sales_sum ticketing_audience ticketing_audience_sum search_date".split(" ")
+                
+                for name in return_type_list:
+                    exec(f'return_dict["{name}"] = {name}')
+                
+                return_list.append(return_dict)
                 
             return return_list
         
