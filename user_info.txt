@@ -1,0 +1,3 @@
+host = localhost
+user = movies_combine
+password = movies_combine
