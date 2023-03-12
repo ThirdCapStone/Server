@@ -1,3 +1,5 @@
 host = localhost
 user = movies_combine
 password = movies_combine
+db = movies_combine
+charset = utf8mb4
