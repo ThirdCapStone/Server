@@ -23,6 +23,7 @@ def create_account_table(conn: Connection) -> None:
             `birthday` DATE NOT NULL,
             `profile_image` TEXT DEFAULT NULL,
             `password_date` DATETIME NOT NULL,
+            `like_categories` TEXT DEFAULT ('[]'),
             INDEX (`account_seq`)
         );
     """)
@@ -30,37 +31,19 @@ def create_account_table(conn: Connection) -> None:
     cursor.close()
 
 
-def create_movie_table(conn: Connection) -> bool:
-    cursor = conn.cursor()
-    cursor.execute("""
-        CREATE TABLE `movie`(
-            `movie_seq` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY
-        );
-    """)
-    cursor.close()
-
-
-def create_category_table(conn: Connection) -> bool:
+def create_category_table(conn: Connection) -> None:
     cursor = conn.cursor()
     cursor.execute("""
        CREATE TABLE `category` (
            `category_seq` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-           `account_seq` BIGINT UNSIGNED DEFAULT NULL,
-           `movie_seq` BIGINT UNSIGNED DEFAULT NULL,
-           `name` TEXT NOT NULL,
-           FOREIGN KEY (`account_seq`) REFERENCES `account` (`account_seq`),
-           FOREIGN KEY (`movie_seq`) REFERENCES `movie` (`movie_seq`)
+           `name` TEXT NOT NULL
        );
     """)
     cursor.close()
-
-
-def key_setting(conn: Connection) -> bool:
-    pass
-
+    
 
 def setting(conn: Connection) -> None:
-    table_list = ["account", "movie", "category"]#, "cinema", "pay", "ticket", "score"]
+    table_list = ["account", "category"]#, "movie", "cinema", "pay", "ticket", "score"]
 
     for table in table_list:
         if not check_exist_table(conn, table):

@@ -1,4 +1,4 @@
-from typing import List, Tuple, Optional, Dict, Any
+from typing import List, Tuple, Union, Dict, Any, Optional
 from typing_extensions import Self
 from pydantic import BaseModel
 from datetime import datetime
@@ -35,7 +35,6 @@ class LoginModel(BaseModel):
     
 
 class UpdateModel(BaseModel):
-    id: str
     password: Optional[str] = None
     nickname: Optional[str] = None
     email: Optional[str] = None
@@ -57,10 +56,10 @@ class Account(BaseModel):
     birthday: date
     profile_image: Optional[str] = None
     password_date: datetime
-    like_categories: Optional[List[int]] = None
+    like_categories: Union[Optional[List[int]], Optional[str]] = None
         
     
-    def __init__(self, result_tuple: Tuple[int, str, datetime, bytes], like_categories: Optional[List[int]]) -> None:
+    def __init__(self, result_tuple: Tuple[int, str, datetime, bytes]) -> None:
         super().__init__(
             account_seq = result_tuple[0], 
             id = result_tuple[1], 
@@ -72,7 +71,7 @@ class Account(BaseModel):
             birthday = result_tuple[7],
             profile_image = None if result_tuple[8] == None else result_tuple[8].decode("utf-8"),
             password_date = result_tuple[9],
-            like_categories = like_categories,
+            like_categories = result_tuple[10],
         )
         
     
@@ -97,20 +96,8 @@ class Account(BaseModel):
                 cursor.close()
                 return (AccountResult.FAIL, None)
             
-            else:
-                cursor.execute(f"""
-                    SELECT category_seq FROM category WHERE `account_seq` = {account_result[0][0]};
-                """)
-                
-                category_result = cursor.fetchall()
-            
             cursor.close()
-            
-            if category_result == ():
-                return (AccountResult.SUCCESS, Account(account_result[0], None))
-            
-            else:
-                return (AccountResult.SUCCESS, Account(account_result[0], list(category_result[0])))
+            return (AccountResult.SUCCESS, Account(account_result[0]))
                     
         except Exception as e:
             print(f"{e}: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
@@ -131,8 +118,6 @@ class Account(BaseModel):
                 else:
                     return AccountResult.FAIL
                 
-            
-        
         except Exception as e:
             print(f"{e}: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
             return AccountResult.INTERNAL_SERVER_ERROR
@@ -160,7 +145,7 @@ class Account(BaseModel):
                 return AccountResult.SUCCESS
             
             else:
-                return AccountResult.DATAEXIST    
+                return AccountResult.CONFLICT
                 
         except Exception as e:
             print(f"{e}: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
@@ -182,6 +167,26 @@ class Account(BaseModel):
             cursor.close()
             
             return AccountResult.SUCCESS
+            
+        except Exception as e:
+            print(f"{e}: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
+            return AccountResult.INTERNAL_SERVER_ERROR
+        
+        
+    @staticmethod
+    def session_to_account_id(request: Request) -> Tuple[AccountResult, Optional[str]]:
+        try:
+            session = request.session
+            if "check_login" not in ",".join(session.keys()):
+                return [AccountResult.SESSIONTIMEOUT, None]
+            
+            for key in session.keys():
+                if "check_login" in key:
+                    id = key[:-12]
+                    
+                    return [AccountResult.SUCCESS, id]
+            
+            return [AccountResult.FAIL, None]
             
         except Exception as e:
             print(f"{e}: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
@@ -212,23 +217,68 @@ class Account(BaseModel):
     
     def update_column(self, conn: pymysql.connections.Connection, **kwargs: Dict[str, Any]) -> AccountResult:
         try:
-            update_list = ["password", "nickname", "email", "phone", "profile_image", "like_category"]
+            update_list = ["password", "nickname", "email", "phone", "profile_image"]
             cursor = conn.cursor()
             
             for key, value in kwargs.items():
                 if key in update_list:
+                    if key == "password":
+                        cursor.execute(f"""
+                            UPDATE account SET password_date = '{datetime.now()}' WHERE id = '{self.id}';
+                        """)
+                        value = bcrypt.hashpw(value.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+                        
                     cursor.execute(f"""
                         UPDATE account SET {key} = '{value}' WHERE id = '{self.id}';            
                     """)
-                    
-                    if key == "password":
-                        cursor.execute(f"""
-                            UPDATE account SET password_date = '{datetime.now()} WHERE id = '{self.id}';
-                        """)
                             
+            conn.commit()
             cursor.close()
             return AccountResult.SUCCESS
                     
+        except Exception as e:
+            print(f"{e}: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
+            return AccountResult.INTERNAL_SERVER_ERROR
+        
+        
+    def update_category(self, conn: pymysql.connections.Connection, is_add: bool, category_num: Optional[int] = None) -> AccountResult:
+        try:
+            cursor = conn.cursor()
+            
+            cursor.execute(f"""
+                SELECT * FROM category WHERE category_seq = {category_num};            
+            """)
+            
+            result = cursor.fetchall()
+            
+            if result == ():
+                cursor.close()
+                return AccountResult.FAIL
+            
+            else:
+                if isinstance(self.like_categories, str):
+                    if self.like_categories == '[]':
+                        self.like_categories = list()
+                    else:
+                        self.like_categories = list(map(int, self.like_categories.strip('][').split(', ')))
+                
+                if is_add:
+                    self.like_categories.append(category_num)
+                    self.like_categories = list(set(self.like_categories))
+                    
+                else:
+                    self.like_categories.remove(category_num)
+                    
+                    
+                self.like_categories = str(self.like_categories)
+                cursor.execute(f"""
+                    UPDATE account SET like_categories = '{self.like_categories}' WHERE account_seq = {self.account_seq};
+                """)
+                
+            conn.commit()
+            cursor.close()
+            return AccountResult.SUCCESS
+        
         except Exception as e:
             print(f"{e}: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
             return AccountResult.INTERNAL_SERVER_ERROR

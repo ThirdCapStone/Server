@@ -36,7 +36,7 @@ def custom_openapi():
                         "description": "Request Time Out",
                         "content": {
                             "application/json": {
-                                "example" : {"status": "세션이 만료되었습니다."}
+                                "example" : {"message": "세션이 만료되었습니다."}
                             }
                         }
                     }
@@ -46,7 +46,7 @@ def custom_openapi():
                         "description": "Internal Server Error",
                         "content": {
                             "application/json": {
-                                "example": {"status": "서버 내부 에러가 발생하였습니다."}
+                                "example": {"message": "서버 내부 에러가 발생하였습니다."}
                             }
                         }
                     }
@@ -67,5 +67,5 @@ if __name__ == "__main__":
         host = "localhost",
         app = "main:app",
         reload = True,
-        port = 8080,
+        port = 3000,
     )
