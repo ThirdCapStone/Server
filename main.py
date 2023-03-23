@@ -1,10 +1,11 @@
 from starlette.middleware.sessions import SessionMiddleware
+from fastapi.middleware.cors import CORSMiddleware
+from routers.account_router import account_router
 from fastapi.openapi.utils import get_openapi
 from db.connection import db_connection
-from fastapi import FastAPI
 from db.settings import setting
 from db.models.account import *
-from routers.account_router import account_router
+from fastapi import FastAPI
 import uvicorn
 
 
@@ -53,7 +54,17 @@ def custom_openapi():
                     
     return app.openapi_schema
 app = FastAPI()
-app.add_middleware(SessionMiddleware, secret_key = open("session_secret_key.txt", "r").readline())
+app.add_middleware(
+    CORSMiddleware, 
+    allow_origins='*',
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    )
+app.add_middleware(
+    SessionMiddleware, 
+    secret_key = open("session_secret_key.txt", "r").readline(),
+)
 app.include_router(account_router)
 app.openapi = custom_openapi
 
