@@ -1,6 +1,6 @@
-import pymysql
 from typing import Dict
-
+import traceback
+import pymysql
 
 def load_mysql_user_info() -> Dict[str, str]:
     try:
@@ -39,10 +39,8 @@ def db_connection() -> pymysql.connections.Connection:
             **user_info
         )
 
-    except pymysql.err.OperationalError:
-        print(pymysql.err.OperationalError)
-        raise pymysql.err.OperationalError("Database doesn't exist")
+    except pymysql.err.OperationalError as e:
+        print(f"{e}: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
     
-    except TypeError as err:
-        argument = str(err).split("argument")[1].replace("'", "").strip()
-        raise KeyError(f"Key '{argument}' doesn't exist")
+    except TypeError as e:
+        print(f"{e}: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
