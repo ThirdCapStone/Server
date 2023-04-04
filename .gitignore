@@ -1,2 +1,6 @@
 *__pycache__
 session_secret_key.txt
+*.pytest_cache
+*chromedriver
+*LICENSE.chromedriver
+*env.py
