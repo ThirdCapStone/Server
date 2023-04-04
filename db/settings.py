@@ -14,9 +14,9 @@ def create_account_table(conn: Connection) -> None:
     cursor.execute("""
         CREATE TABLE `account`(
             `account_seq` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-            `id` VARCHAR(15) NOT NULL,
+            `id` VARCHAR(15) NOT NULL UNIQUE,
             `password` VARCHAR(64) NOT NULL,
-            `nickname` VARCHAR(20) NOT NULL,
+            `nickname` VARCHAR(20) NOT NULL UNIQUE,
             `email` VARCHAR(50) NOT NULL,
             `phone` VARCHAR(13) NOT NULL,
             `signup_date` DATETIME DEFAULT NOW(),
@@ -40,10 +40,11 @@ def create_category_table(conn: Connection) -> None:
        );
     """)
     cursor.close()
-    
+
 
 def setting(conn: Connection) -> None:
-    table_list = ["account", "category"]#, "movie", "cinema", "pay", "ticket", "score"]
+    # , "movie", "cinema", "pay", "ticket", "score"]
+    table_list = ["account", "category"]
 
     for table in table_list:
         if not check_exist_table(conn, table):

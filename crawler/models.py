@@ -1,65 +1,152 @@
-from typing import List, Dict, Union
-from datetime import datetime
+from typing import Tuple, Optional, List, Dict, Union
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.by import By
+from selenium import webdriver
 from bs4 import BeautifulSoup
 from enum import Enum
+import traceback
+import selenium
 import requests
+import re
 
 
 class CrawlerResponse(Enum):
     FAIL = 0
     SUCCESS = 1
-    DATAREQUIRED = 2
-    URLNOTFOUND = 3
-    SERVERERROR = 4
+    DATA_REQUIRED = 2
+    URL_NOT_FOUND = 3
+    INTERNAL_SERVER_ERROR = 4
 
 
-class MovieTicketRankCrawler:
-    
-    @staticmethod
-    def load_info() -> List[Union[Dict[str, int], Dict[str, str], Dict[str, datetime], Dict[str, float]]]:
-        url = "https://www.kobis.or.kr/kobis/business/stat/boxs/findRealTicketList.do"
-        
-        formdata = {
-            "loadEnd": "0",
-            "areaCd": "0105001:0105002:0105003:0105004:0105005:0105006:0105007:0105008:0105009:0105010:0105011:0105012:0105013:0105014:0105015:0105016:",
-            "repNationCd": "1",
-        }
-        response = requests.get(url, formdata)
-        if response.status_code == 404:
-            raise CrawlerResponse.URLNOTFOUND
-        
-        soup = BeautifulSoup(response.text, "html.parser")
-        try:
-            movie_list = soup.find("table", {"class": "tbl_comm th_sort"}).find("tbody").find_all("tr")
+def camel_case_to_snake_case(data: str) -> str:
+    return re.sub(r'(?<!^)(?=[A-Z])', '_', data).lower()
+
+
+def remove_html_tag_from_string(data: str) -> str:
+    CLEANR = re.compile('<.*?>')
+    return re.sub(CLEANR, '', data)
+
+
+chrome_options = Options()
+chrome_options.add_experimental_option("detach", True)
+driver = webdriver.Chrome("./chromedriver", chrome_options=chrome_options)
+driver.header_overrides = {
+    "Connection": "keep-alive",
+    "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36",
+    'sec-ch-ua': '"Google Chrome";v="111", "Not(A:Brand";v="8", "Chromium";v="111"',
+}
+
+
+class Crawler:
+    class MEGABOX:
+        @staticmethod
+        def load_area_info(url: str) -> Tuple[CrawlerResponse, Optional[List[Dict[str, str]]]]:
+            try:
+                return_list = list()
+                driver.get(url)
+                area_list = driver.find_elements(
+                    By.XPATH, "//*[@id='contents']/div/div[1]/div[1]/ul/li")
+                for area in area_list:
+                    return_dict = {}
+                    return_dict["area"] = area.find_element(
+                        By.TAG_NAME, "button").text
+                    theather_list = area.find_elements(By.TAG_NAME, "li")
+                    theather_infoes = list()
+                    for theather in theather_list:
+                        data_brch_no = theather.get_attribute("data-brch-no")
+                        title = theather.find_element(By.TAG_NAME, "a").get_attribute(
+                            "title").split("상세보기")[0].rstrip()
+                        theather_info = {"title": title,
+                                         "data_brch_no": data_brch_no}
+                        theather_infoes.append(theather_info)
+                    return_dict["info"] = theather_infoes
+                    return_list.append(return_dict)
+
+                return [CrawlerResponse.SUCCESS, return_list]
+
+            except selenium.common.exceptions.WebDriverException as e:
+                print(
+                    f"{e}: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
+                return [CrawlerResponse.URL_NOT_FOUND, None]
+
+            except Exception as e:
+                print(
+                    f"{e}: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
+                return [CrawlerResponse.INTERNAL_SERVER_ERROR, None]
+
+            finally:
+                driver.close()
+
+        @staticmethod
+        def load_theather_info(brch: str) -> Tuple[CrawlerResponse, str]:
+            url = "https://www.megabox.co.kr/on/oh/ohc/Brch/infoPage.do"
             return_list = []
-            
-            for movie in movie_list:
-                tds = movie.find_all("td")
-                rank = int(tds[0].text)
-                title = movie.find("span", {"class": "ellip per90"}).find("a").text
-                try:
-                    release_date = datetime.strptime(''.join(tds[2].text.split()), "%Y-%m-%d")
-                except ValueError:
-                    release_date = None
-                ticketing_rate = float(tds[3].text[:-1])
-                ticketing_sales = tds[4].text
-                ticketing_sales_sum = tds[5].text
-                ticketing_audience = tds[6].text
-                ticketing_audience_sum = tds[7].text
-                search_date = datetime.now()
-                
-                return_dict = dict()
-                return_type_list = "rank title release_date ticketing_rate ticketing_sales ticketing_sales_sum ticketing_audience ticketing_audience_sum search_date".split(" ")
-                
-                for name in return_type_list:
-                    exec(f'return_dict["{name}"] = {name}')
-                
-                return_list.append(return_dict)
-                
-            return return_list
-        
-        except ValueError:
-            raise CrawlerResponse.DATAREQUIRED
-        
-        except:
-            raise CrawlerResponse.SERVERERROR
+            try:
+                response = requests.post(url, params={"brchNo": f"{brch}"})
+                if response.status_code == 200:
+                    return_dict = {}
+                    soup = BeautifulSoup(response.text, "html.parser")
+                    title = soup.find("p", {"class": "big"})
+                    if title == None:
+                        title = "제목 없음"
+
+                    else:
+                        title = title.text.strip()
+
+                    return_dict["title"] = title
+                    theater_facility = soup.find(
+                        "div", {"class": "theater-facility"})
+                    facilities = []
+                    theater_facilities = theater_facility.find_all("p")
+                    for facility in theater_facilities:
+                        facilities.append(facility.text)
+                    return_dict["facilites"] = facilities
+                    return_list.append(return_dict)
+                    # find -> 1개
+                    # find_all -> 전체다
+                    address = soup.find_all(
+                        "ul", {"class": "dot-list"})[1].find("li").text.replace("도로명주소 :  ", "")
+                    return_dict["address"] = address
+
+                    return_dict["floors"] = []
+                    floors = soup.find_all(
+                        "ul", {"class": "dot-list"})[0].find_all("li")
+
+                    for floor in floors:
+                        floor, value = floor.text.split(" : ")
+                        value = value.split(", ")
+                        return_dict["floors"].append({floor: value})
+                    # print(return_dict["floors"])
+
+                else:
+                    print(f"request 응답 없음: {response}")
+                    return [CrawlerResponse.FAIL, None]
+
+                return [CrawlerResponse.SUCCESS, return_dict]
+
+            except Exception as e:
+                print(
+                    f"{e}: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
+                return [CrawlerResponse.INTERNAL_SERVER_ERROR, None]
+
+        @staticmethod
+        def load_scedule_info(brch: str):
+            url = "https://www.megabox.co.kr/on/oh/ohc/Brch/schedulePage.do"
+            response = requests.post(url, params={
+                                     "brchNo": brch, "firstAt": "Y", "masterType": "brch", "playDe": "20230404"})
+            print(len(response.json()["megaMap"]["movieFormList"]))
+
+    class CGV:
+        pass
+
+    class LOTTE:
+        pass
+
+
+response, info_list = Crawler.MEGABOX.load_area_info(
+    "https://www.megabox.co.kr/theater/list")
+for info in info_list:
+    for brch_no in info["info"]:
+        Crawler.MEGABOX.load_scedule_info(brch_no["data_brch_no"])
+        break
+    break

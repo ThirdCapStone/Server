@@ -27,43 +27,34 @@ def custom_openapi():
             for _, param in method_item.items():
                 if param['summary'] == 'Signup':
                     del param['responses']['200']
-                    
+
                 responses = param.get('responses')
                 if '422' in responses:
                     del responses['422']
-                    
-                if '408' not in responses:
-                    responses['408'] = {
-                        "description": "Request Time Out",
-                        "content": {
-                            "application/json": {
-                                "example" : {"message": "세션이 만료되었습니다."}
-                            }
+
+                responses['500'] = {
+                    "description": "Internal Server Error",
+                    "content": {
+                        "application/json": {
+                            "example": {"message": "서버 내부 에러가 발생하였습니다."}
                         }
                     }
-                    
-                if '500' not in responses:
-                    responses['500'] = {
-                        "description": "Internal Server Error",
-                        "content": {
-                            "application/json": {
-                                "example": {"message": "서버 내부 에러가 발생하였습니다."}
-                            }
-                        }
-                    }
-                    
+                }
+
     return app.openapi_schema
+
+
 app = FastAPI()
 app.add_middleware(
-    CORSMiddleware, 
+    CORSMiddleware,
     allow_origins='*',
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-    )
+)
 app.add_middleware(
-    SessionMiddleware, 
-    secret_key = open("session_secret_key.txt", "r").readline(),
+    SessionMiddleware,
+    secret_key=open("session_secret_key.txt", "r").readline(),
 )
 app.include_router(account_router)
 app.openapi = custom_openapi
@@ -75,8 +66,8 @@ conn.close()
 
 if __name__ == "__main__":
     uvicorn.run(
-        host = "localhost",
-        app = "main:app",
-        reload = True,
-        port = 3000,
+        host="127.0.0.1",
+        app="main:app",
+        reload=True,
+        port=8000,
     )
