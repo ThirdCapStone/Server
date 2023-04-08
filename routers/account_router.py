@@ -160,6 +160,13 @@ async def login(request: Request, model: LoginModel) -> JSONResponse:
                 }
             }
         },
+        408: {
+            "content": {
+                "application/json": {
+                    "example": {"message": "세션이 만료되었습니다."}
+                }
+            }
+        },
         409: {
             "content": {
                 "application/json": {
@@ -173,6 +180,7 @@ async def update(request: Request, model: UpdateModel) -> JSONResponse:
     response_dict = {
         AccountResult.SUCCESS: "정보를 수정하였습니다.",
         AccountResult.FAIL: "정보 수정에 실패하였습니다.",
+        AccountResult.SESSION_TIME_OUT: "세션이 만료되었습니다.",
         AccountResult.CONFLICT: "해당 닉네임이 존재합니다.",
         AccountResult.INTERNAL_SERVER_ERROR: "서버 내부 에러가 발생하였습니다."
     }
@@ -180,16 +188,12 @@ async def update(request: Request, model: UpdateModel) -> JSONResponse:
     result, account = Account.load_account(conn, id=model.id)
     if result == AccountResult.SUCCESS:
         result = account.check_session(request)
-        print(result)
 
         if result == AccountResult.SUCCESS:
-            for key, value in dict(model).items():
-                if value != None:
-                    result = eval(
-                        f"account.update_column(conn, {key}='{value}')")
-                    if key == "password":
-                        request.session[f"{model.id}_check_login"] = hashlib.sha256(
-                            (model.id + value).encode()).hexdigest()
+            result = eval(
+                f"account.update_column(conn, model)")
+            request.session[f"{model.id}_check_login"] = hashlib.sha256(
+                (model.id + model.password).encode()).hexdigest()
 
     return JSONResponse({"message": response_dict[result]}, status_code=result.value)
 
@@ -247,7 +251,7 @@ async def update_category(request: Request, category: int, is_add: bool) -> JSON
         200: {
             "content": {
                 "application/json": {
-                    "example": {"message": "존재하지 않습니다!"}
+                    "example": {"message": "존재하지 않습니다."}
                 }
             }
         },
@@ -261,29 +265,64 @@ async def update_category(request: Request, category: int, is_add: bool) -> JSON
     },
 )
 async def check(id: Optional[str] = None, nickname: Optional[str] = None) -> JSONResponse:
-    return {
-        AccountResult.SUCCESS: JSONResponse({"message": "존재하지 않습니다!"}, status_code=status.HTTP_200_OK),
-        AccountResult.CONFLICT: JSONResponse({"message": "존재합니다."}, status_code=status.HTTP_409_CONFLICT),
-        AccountResult.INTERNAL_SERVER_ERROR: JSONResponse(
-            {"message": "서버 내부 에러가 발생하였습니다."}, status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
-    }[Account.check_exist_column(conn, id, nickname)]
+    response_dict = {
+        AccountResult.SUCCESS: "존재하지 않습니다.",
+        AccountResult.CONFLICT: "존재합니다.",
+        AccountResult.INTERNAL_SERVER_ERROR: "서버 내부 에러가 발생하였습니다."
+    }
+    result = Account.check_exist_column(conn, id, nickname)
+
+    return JSONResponse({"message": response_dict[result]}, status_code=result.value)
 
 
 @account_router.get(
-    "/"
+    "/",
+    responses={
+        200: {
+            "content": {
+                "application/json": {
+                    "example": {
+                        "account_seq": 63,
+                        "id": "test",
+                        "password": "$2b$12$wlbPZRJQPM32F7f.6JpJ9OUa7iL2gVWBmGFqsoCoNFxYYgU793FVO",
+                        "nickname": "test",
+                        "email": "test",
+                        "phone": "test",
+                        "signup_date": "2023-04-06 04:28:29",
+                        "birthday": "1970-01-01",
+                        "profile_image": None,
+                        "password_date": "2023-04-06 04:28:30",
+                        "like_categories": "[]"
+                    }
+                }
+            }
+        },
+        401: {
+            "content": {
+                "application/json": {
+                    "example": {"message": "정보를 불러오는데 실패하였습니다."}
+                }
+            }
+        },
+        403: {
+            "content": {
+                "application/json": {
+                    "example": {"message": "API 키가 유효하지 않습니다."}
+                }
+            }
+        }
+    },
+    response_model_exclude_none=True
 )
 async def load_account(account_seq: Optional[int] = None, id: Optional[str] = None, api_key: APIKeyHeader = Depends(auth.get_api_key)) -> JSONResponse:
     result, account = Account.load_account(
         conn, account_seq=account_seq, id=id)
-    if result == AccountResult.SUCCESS:
-        return JSONResponse(vars(account), status_code=status.HTTP_200_OK)
 
-    match result:
-        case AccountResult.FAIL:
-            pass
-        case AccountResult.FORBIDDEN:
-            pass
-        case AccountResult.INTERNAL_SERVER_ERROR:
-            pass
-        case _:
-            pass
+    response_dict = {
+        AccountResult.SUCCESS: account.convert_json(),
+        AccountResult.FAIL: {"message": "정보를 불러오는데 실패하였습니다."},
+        AccountResult.FORBIDDEN: {"message": "API 키가 유효하지 않습니다."},
+        AccountResult.INTERNAL_SERVER_ERROR: {"message": "서버 내부 에러가 발생하였습니다."},
+    }
+
+    return JSONResponse(response_dict[result], status_code=result.value)

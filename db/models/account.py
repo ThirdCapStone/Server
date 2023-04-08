@@ -60,7 +60,7 @@ class Account(BaseModel):
     password_date: datetime
     like_categories: Union[Optional[List[int]], Optional[str]] = None
 
-    def __init__(self, result_tuple: Tuple[int, str, datetime, bytes]) -> None:
+    def __init__(self, result_tuple: Tuple[int, str, datetime]) -> None:
         super().__init__(
             account_seq=result_tuple[0],
             id=result_tuple[1],
@@ -75,6 +75,20 @@ class Account(BaseModel):
             password_date=result_tuple[9],
             like_categories=result_tuple[10],
         )
+
+    def convert_json(self):
+        return {
+            "account_seq": self.account_seq,
+            "id": self.id,
+            "nickname": self.nickname,
+            "email": self.email,
+            "phone": self.phone,
+            "signup_date": self.signup_date.strftime("%Y-%m-%d %H:%M:%S"),
+            "birthday": self.birthday.strftime("%Y-%m-%d"),
+            "profile_image": self.profile_image,
+            "password_date": self.password_date.strftime("%Y-%m-%d %H:%M:%S"),
+            "like_categories": self.like_categories
+        }
 
     @staticmethod
     def load_account(conn: pymysql.connections.Connection, account_seq: Optional[int] = None, id: Optional[str] = None) -> Tuple[AccountResult, Optional[Self]]:
@@ -169,6 +183,11 @@ class Account(BaseModel):
 
             return AccountResult.CREATED
 
+        except pymysql.err.IntegrityError as e:
+            print(
+                f"{e}: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
+            return AccountResult.FAIL
+
         except Exception as e:
             print(
                 f"{e}: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
@@ -196,30 +215,30 @@ class Account(BaseModel):
                 f"{e}: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
             return AccountResult.INTERNAL_SERVER_ERROR
 
-    def update_column(self, conn: pymysql.connections.Connection, **kwargs: Dict[str, Any]) -> AccountResult:
+    def update_column(self, conn: pymysql.connections.Connection, model: UpdateModel) -> AccountResult:
         try:
-            update_list = ["password", "nickname",
-                           "email", "phone", "profile_image"]
             cursor = conn.cursor()
 
-            for key, value in kwargs.items():
-                if key in update_list:
-                    if key == "password":
-                        cursor.execute(f"""
-                            UPDATE account SET password_date = '{datetime.now()}' WHERE id = '{self.id}';
-                        """)
-                        value = bcrypt.hashpw(value.encode(
-                            "utf-8"), bcrypt.gensalt()).decode("utf-8")
+            for key, value in dict(model).items():
 
+                if key == "password":
                     cursor.execute(f"""
-                        UPDATE account SET {key} = '{value}' WHERE id = '{self.id}';            
+                        UPDATE account SET password_date = '{datetime.now()}' WHERE id = '{self.id}';
                     """)
+                    model.password = value = bcrypt.hashpw(value.encode(
+                        "utf-8"), bcrypt.gensalt()).decode("utf-8")
 
-                    if key in ("id", "nickname"):
-                        flag = exec(
-                            f"Account.check_exist_column(conn, {key} = '{value}')")
-                        if flag == AccountResult.CONFLICT:
-                            return AccountResult.CONFLICT
+                cursor.execute(f"""
+                    UPDATE account SET {key} = '{value}' WHERE id = '{self.id}';            
+                """)
+
+                if key in ("id", "nickname"):
+                    flag = exec(
+                        f"Account.check_exist_column(conn, {key} = '{value}')")
+                    if flag == AccountResult.CONFLICT:
+                        return AccountResult.CONFLICT
+
+                exec(f"self.{key} = '{value}'")
 
             conn.commit()
             cursor.close()
@@ -275,8 +294,8 @@ class Account(BaseModel):
 
     def check_session(self, request: Request) -> AccountResult:
         try:
+            # request.session.clear()
             session = request.session
-
             if f"{self.id}_check_login" not in session.keys():
                 return AccountResult.SESSION_TIME_OUT
 
