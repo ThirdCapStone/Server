@@ -3,13 +3,17 @@ from typing_extensions import Self
 from pydantic import BaseModel
 from datetime import datetime
 from fastapi import Request
-from datetime import date
 from enum import Enum
 import traceback
 import pymysql
 import hashlib
 import bcrypt
 import json
+
+def json_default(value):
+    if isinstance(value, datetime):
+        return value.strftime('%Y-%m-%d %H:%M:%S')
+    raise TypeError('not JSON serializable')
 
 
 class AccountResult(Enum):
@@ -26,7 +30,6 @@ class SignUpModel(BaseModel):
     id: str
     password: str
     nickname: str
-    birthday: date
     email: str
     phone: str
 
@@ -44,7 +47,7 @@ class UpdateModel(BaseModel):
     phone: Optional[str] = None
 
     def convert_json(self):
-        return json.dumps(self, default=lambda x: x.__dict__)
+        return json.loads(json.dumps(self.__dict__, default=json_default))
 
 
 class Account(BaseModel):
@@ -55,7 +58,7 @@ class Account(BaseModel):
     email: str
     phone: str
     signup_date: datetime
-    birthday: date
+    birthday: Optional[datetime]
     profile_image: Optional[str] = None
     password_date: datetime
     like_categories: Union[Optional[List[int]], Optional[str]] = None
@@ -69,7 +72,7 @@ class Account(BaseModel):
             email=result_tuple[4],
             phone=result_tuple[5],
             signup_date=result_tuple[6],
-            birthday=result_tuple[7],
+            birthday=None if result_tuple[7] == None else result_tuple[7],
             profile_image=None if result_tuple[8] == None else result_tuple[8].decode(
                 "utf-8"),
             password_date=result_tuple[9],
@@ -77,18 +80,7 @@ class Account(BaseModel):
         )
 
     def convert_json(self):
-        return {
-            "account_seq": self.account_seq,
-            "id": self.id,
-            "nickname": self.nickname,
-            "email": self.email,
-            "phone": self.phone,
-            "signup_date": self.signup_date.strftime("%Y-%m-%d %H:%M:%S"),
-            "birthday": self.birthday.strftime("%Y-%m-%d"),
-            "profile_image": self.profile_image,
-            "password_date": self.password_date.strftime("%Y-%m-%d %H:%M:%S"),
-            "like_categories": self.like_categories
-        }
+        return json.loads(json.dumps(self.__dict__, default=json_default))
 
     @staticmethod
     def load_account(conn: pymysql.connections.Connection, account_seq: Optional[int] = None, id: Optional[str] = None) -> Tuple[AccountResult, Optional[Self]]:
@@ -167,7 +159,7 @@ class Account(BaseModel):
             return AccountResult.INTERNAL_SERVER_ERROR
 
     @staticmethod
-    def signup(conn: pymysql.connections.Connection, id: str, password: str, nickname: str, birthday: datetime, email: str, phone: str) -> AccountResult:
+    def signup(conn: pymysql.connections.Connection, id: str, password: str, nickname: str, email: str, phone: str) -> AccountResult:
         try:
             cursor = conn.cursor()
 
@@ -175,7 +167,7 @@ class Account(BaseModel):
                 "utf-8"), bcrypt.gensalt()).decode("utf-8")
 
             cursor.execute(f"""
-                INSERT INTO account(id, password, nickname, email, phone, birthday, password_date) VALUES ('{id}', '{hashed_password}', '{nickname}', '{email}', '{phone}', '{birthday}', '{datetime.now()}');
+                INSERT INTO account(id, password, nickname, email, phone,  password_date) VALUES ('{id}', '{hashed_password}', '{nickname}', '{email}', '{phone}', '{datetime.now()}');
             """)
 
             conn.commit()
@@ -294,7 +286,6 @@ class Account(BaseModel):
 
     def check_session(self, request: Request) -> AccountResult:
         try:
-            # request.session.clear()
             session = request.session
             if f"{self.id}_check_login" not in session.keys():
                 return AccountResult.SESSION_TIME_OUT

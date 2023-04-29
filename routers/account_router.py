@@ -14,7 +14,6 @@ account_router = APIRouter(
 
 conn = db_connection()
 
-
 @account_router.put(
     "/signup",
     responses={
@@ -44,11 +43,10 @@ async def signup(model: SignUpModel) -> JSONResponse:
     id = model.id
     password = model.password
     nickname = model.nickname
-    birthday = model.birthday
     email = model.email
     phone = model.phone
     result = Account.signup(
-        conn, id, password, nickname, birthday, email, phone)
+        conn, id, password, nickname, email, phone)
 
     return JSONResponse({"message": response_dict[result]}, status_code=result.value)
 
