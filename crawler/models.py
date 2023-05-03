@@ -1,12 +1,19 @@
+import os, sys
+sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
+
+from selenium.common.exceptions import WebDriverException
+from webdriver_manager.chrome import ChromeDriverManager
+from db.models.category import Category, CategoryResult
 from typing import Tuple, Optional, List, Dict, Union
 from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.service import Service
+from pymysql.connections import Connection
 from selenium import webdriver
 from bs4 import BeautifulSoup
 from enum import Enum
 import traceback
-import selenium
 import requests
+import datetime
 import re
 
 
@@ -27,114 +34,131 @@ def remove_html_tag_from_string(data: str) -> str:
     return re.sub(CLEANR, '', data)
 
 
+def remove_escape_character_from_string(data: str) -> str:
+    escapes = ''.join([chr(char) for char in range(1, 32)])
+    translator = str.maketrans('', '', escapes)
+    data = data.translate(translator)
+    return data
+
+
 chrome_options = Options()
+chrome_options.add_argument("--headless")
 chrome_options.add_experimental_option("detach", True)
-driver = webdriver.Chrome("./chromedriver", chrome_options=chrome_options)
-driver.header_overrides = {
-    "Connection": "keep-alive",
-    "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36",
-    'sec-ch-ua': '"Google Chrome";v="111", "Not(A:Brand";v="8", "Chromium";v="111"',
-}
+driver = webdriver.Chrome(service=Service(
+    ChromeDriverManager().install()), options=chrome_options)
 
 
-class Crawler:
+class TheaterCrawler:
     class MEGABOX:
-        @staticmethod
-        def load_area_info(url: str) -> Tuple[CrawlerResponse, Optional[List[Dict[str, str]]]]:
+        @ staticmethod
+        def load_area_info() -> Tuple[CrawlerResponse, Optional[List[Dict[str, Union[str, List[Dict[str, str]]]]]]]:
+            url = "https://www.megabox.co.kr/theater/list"
             try:
-                return_list = list()
+                return_list = []
                 driver.get(url)
-                area_list = driver.find_elements(
-                    By.XPATH, "//*[@id='contents']/div/div[1]/div[1]/ul/li")
-                for area in area_list:
-                    return_dict = {}
-                    return_dict["area"] = area.find_element(
-                        By.TAG_NAME, "button").text
-                    theather_list = area.find_elements(By.TAG_NAME, "li")
-                    theather_infoes = list()
-                    for theather in theather_list:
-                        data_brch_no = theather.get_attribute("data-brch-no")
-                        title = theather.find_element(By.TAG_NAME, "a").get_attribute(
-                            "title").split("상세보기")[0].rstrip()
-                        theather_info = {"title": title,
-                                         "data_brch_no": data_brch_no}
-                        theather_infoes.append(theather_info)
-                    return_dict["info"] = theather_infoes
-                    return_list.append(return_dict)
+                html = driver.page_source
+                soup = BeautifulSoup(html, "html.parser")
+                for place in soup.select("div.theater-place > ul > li"):
+                    info_list = []
+                    for theater in place.select("div.theater-list > ul > li"):
+                        info_list.append({
+                            "title": theater.a.text,
+                            "brch_no": theater["data-brch-no"] 
+                        })
+                    return_list.append({
+                        "city": remove_escape_character_from_string(place.button.text),
+                        "theaters": info_list
+                    })
+                    
+                return (CrawlerResponse.SUCCESS, return_list)
 
-                return [CrawlerResponse.SUCCESS, return_list]
-
-            except selenium.common.exceptions.WebDriverException as e:
+            except WebDriverException as e:
                 print(
                     f"{e}: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
-                return [CrawlerResponse.URL_NOT_FOUND, None]
+                return (CrawlerResponse.URL_NOT_FOUND, None)
 
             except Exception as e:
                 print(
                     f"{e}: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
-                return [CrawlerResponse.INTERNAL_SERVER_ERROR, None]
+                return (CrawlerResponse.INTERNAL_SERVER_ERROR, None)
 
-            finally:
-                driver.close()
-
-        @staticmethod
-        def load_theather_info(brch: str) -> Tuple[CrawlerResponse, str]:
-            url = "https://www.megabox.co.kr/on/oh/ohc/Brch/infoPage.do"
-            return_list = []
+        @ staticmethod
+        def load_theather_info(brch_no: str) -> Tuple[CrawlerResponse, Optional[Dict[str, Union[str, float, List[str]]]]]:
+            url = f"https://www.megabox.co.kr/theater?brchNo={brch_no}"
             try:
-                response = requests.post(url, params={"brchNo": f"{brch}"})
-                if response.status_code == 200:
-                    return_dict = {}
-                    soup = BeautifulSoup(response.text, "html.parser")
-                    title = soup.find("p", {"class": "big"})
-                    if title == None:
-                        title = "제목 없음"
+                driver.get(url)
+                html = driver.page_source
+                soup = BeautifulSoup(html, "html.parser")
+                titles = soup.select_one("div.theater-info-text")
 
-                    else:
-                        title = title.text.strip()
-
-                    return_dict["title"] = title
-                    theater_facility = soup.find(
-                        "div", {"class": "theater-facility"})
-                    facilities = []
-                    theater_facilities = theater_facility.find_all("p")
-                    for facility in theater_facilities:
-                        facilities.append(facility.text)
-                    return_dict["facilites"] = facilities
-                    return_list.append(return_dict)
-                    # find -> 1개
-                    # find_all -> 전체다
-                    address = soup.find_all(
-                        "ul", {"class": "dot-list"})[1].find("li").text.replace("도로명주소 :  ", "")
-                    return_dict["address"] = address
-
-                    return_dict["floors"] = []
-                    floors = soup.find_all(
-                        "ul", {"class": "dot-list"})[0].find_all("li")
-
-                    for floor in floors:
-                        floor, value = floor.text.split(" : ")
-                        value = value.split(", ")
-                        return_dict["floors"].append({floor: value})
-                    # print(return_dict["floors"])
+                if titles != None:
+                    title = titles.select_one("p.big").text.strip()
+                    subtitle = titles.select_one("p:last-child").text.strip()
 
                 else:
-                    print(f"request 응답 없음: {response}")
-                    return [CrawlerResponse.FAIL, None]
+                    title = None
+                    subtitle = None
 
-                return [CrawlerResponse.SUCCESS, return_dict]
+                facilities = list(map(lambda x: x.text, soup.select(
+                    "div.theater-facility > p")))
+
+                floors = list(map(lambda x: x.text, soup.select(
+                    "ul.dot-list")[1].select("li")))
+                address = soup.select_one(
+                    "ul.dot-list:nth-of-type(2) > li").text.replace("도로명주소 : ", "")
+
+                kakao_map = soup.select_one(
+                    "div.location-map-btn > div > a")["href"]
+                locations = kakao_map.split("?")[1].split("&")[:2]
+                lng, lat = float(locations[0].split(
+                    "=")[1]), float(locations[1].split("=")[1])
+
+                floors = []
+                for floor in floors:
+                    floor, value = floor.split(" :  ")
+                    value = value.split(", ")
+                    floors.append({floor: value})
+
+                return (CrawlerResponse.SUCCESS, {
+                    "title": title,
+                    "subtitle": subtitle,
+                    "facilities": facilities,
+                    "address": address,
+                    "lng": lng,
+                    "lat": lat,
+                    "floors": floors
+                })
+
+            except WebDriverException as e:
+                print(
+                    f"{e}: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
+                return (CrawlerResponse.URL_NOT_FOUND, None)
 
             except Exception as e:
                 print(
                     f"{e}: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
-                return [CrawlerResponse.INTERNAL_SERVER_ERROR, None]
+                return (CrawlerResponse.INTERNAL_SERVER_ERROR, None)
 
         @staticmethod
-        def load_scedule_info(brch: str):
+        def load_scedule_info(brch_no: str):
+            play_date = datetime.datetime.now().date()
             url = "https://www.megabox.co.kr/on/oh/ohc/Brch/schedulePage.do"
-            response = requests.post(url, params={
-                                     "brchNo": brch, "firstAt": "Y", "masterType": "brch", "playDe": "20230404"})
-            print(len(response.json()["megaMap"]["movieFormList"]))
+            return_list = []
+
+            for i in range(19):
+                response = requests.post(url, params={
+                    "brchNo": brch_no, "firstAt": "Y", "masterType": "brch", "playDe": play_date.strftime("%Y%m%d")})
+                json_data = response.json()
+                return_dict = {}
+
+                movie_list = json_data["megaMap"]["movieFormList"]
+                print(movie_list[0])
+                print(f"brchNo: {brch_no}, " +
+                      f"{len(movie_list) / len(movie_list[0])}")
+
+                play_date += datetime.timedelta(days=1)
+
+            return (CrawlerResponse.SUCCESS, "Test")
 
     class CGV:
         pass
@@ -142,11 +166,97 @@ class Crawler:
     class LOTTE:
         pass
 
+class MovieCrawler:
+    @staticmethod
+    def load_movie_list() -> Tuple[CrawlerResponse, Optional[List[str]]]:
+        SIZE = 100
+        url = f"https://movie.daum.net/api/premovie?page=1&size={SIZE}&flag=Y"
+        try:
+            response = requests.get(url)    
+            return (CrawlerResponse.SUCCESS, list(i["id"] for i in response.json()["contents"]))
+        
+        except Exception as e:
+            print(
+                f"{e}: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
+            return (CrawlerResponse.INTERNAL_SERVER_ERROR, None)
 
-response, info_list = Crawler.MEGABOX.load_area_info(
-    "https://www.megabox.co.kr/theater/list")
-for info in info_list:
-    for brch_no in info["info"]:
-        Crawler.MEGABOX.load_scedule_info(brch_no["data_brch_no"])
-        break
-    break
+    @staticmethod
+    def load_cast_info(conn: Connection, movie_id: str) -> Tuple[CrawlerResponse, Dict[str, str]]:
+        url = f"https://movie.daum.net/api/movie/{movie_id}/main"
+        
+        try:
+            casts = requests.get(url).json()["casts"]
+            return_list = []
+            
+            korean_name = cast["nameKorean"]
+            english_name = cast["nameEnglish"]
+            role = cast["movieJob"]["role"]
+            profile_image = cast["profileImage"] if cast["profileImage"] not in ("", None) else None
+            description = cast["description"] if cast["description"] not in ("", None) else None
+            
+            for cast in casts:
+                data = {
+                    "korean_name": korean_name,
+                    "english_name": english_name,
+                    "role": role,
+                    "profile_image": profile_image,
+                    "description": description,
+                }
+
+                return_list.append(data)
+
+            return (CrawlerResponse.SUCCESS, return_list)
+        
+        except Exception as e:
+            print(
+                f"{e}: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
+            return (CrawlerResponse.INTERNAL_SERVER_ERROR, None)
+            
+
+
+    @staticmethod
+    def load_movie_info(conn: Connection, movie_id: str):
+        url = f"https://movie.daum.net/api/movie/{movie_id}/main"
+        
+        try:
+            response = requests.get(url)
+            if response.status_code == 200:
+                data = response.json()["movieCommon"]
+                korean_title = data["titleKorean"]
+                english_title = data["titleEnglish"]
+                production_year = data["productionYear"]
+                require_adult = data["adultOption"]
+                plot = data["plot"]
+                main_photo_image = None
+                if data["mainPhoto"] not in ("", None):
+                    main_photo_image = data["mainPhoto"]["imageUrl"] if data["mainPhoto"]["imageUrl"] not in ("", None) else None
+                genres = ", ".join(data["genres"]).replace("/", ", ").split(", ")
+                
+                for genre in genres:
+                    if not Category.check_exist_category(conn, genre):
+                        result = Category.insert_category(conn, genre)
+                        if result != CategoryResult.SUCCESS:
+                            raise Exception("Error occured").with_traceback
+                        
+                for idx in range(len(genres)):
+                    genres[idx] = Category.load_category_seq(conn, genres[idx])[1][0]
+                
+                return (CrawlerResponse.SUCCESS, {
+                    "korean_title": korean_title,
+                    "english_title": english_title,
+                    "plot": remove_html_tag_from_string(plot).replace(u"\xa0", " "),
+                    "production_year": production_year,
+                    "require_adult": require_adult,
+                    "main_photo_image": main_photo_image,
+                    "genres": genres
+                })
+                
+            else:
+                return (CrawlerResponse.URL_NOT_FOUND, None)
+        
+        except Exception as e:
+            print(
+                f"{e}: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
+            return (CrawlerResponse.INTERNAL_SERVER_ERROR, None)
+      
+        
