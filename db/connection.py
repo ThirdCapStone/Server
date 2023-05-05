@@ -42,6 +42,12 @@ def db_connection() -> pymysql.connections.Connection:
 
     except pymysql.err.OperationalError as e:
         print(f"{e}: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
+        raise Exception("Error occured")
 
     except TypeError as e:
         print(f"{e}: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
+        raise Exception("Error occured")
+    
+    except Exception as e:
+        print(f"{e}: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
+        raise Exception("Error occured")

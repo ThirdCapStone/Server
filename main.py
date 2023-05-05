@@ -9,6 +9,7 @@ from fastapi import FastAPI
 import uvicorn
 
 
+app = FastAPI()
 def custom_openapi():
     if not app.openapi_schema:
         app.openapi_schema = get_openapi(
@@ -44,7 +45,6 @@ def custom_openapi():
     return app.openapi_schema
 
 
-app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
     allow_origins='*',

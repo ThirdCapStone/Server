@@ -13,8 +13,8 @@ class CategoryResult(Enum):
 class Category:
     @staticmethod
     def load_category_list(conn: pymysql.connections.Connection) -> Tuple[CategoryResult, Optional[List[Dict[str, str]]]]:
+        cursor = conn.cursor()
         try:
-            cursor = conn.cursor()    
             cursor.execute(f"""
                 SELECT * FROM category;
             """)
@@ -23,8 +23,7 @@ class Category:
             return (CategoryResult.SUCCESS, result)
             
         except Exception as e:
-            print(
-                f"{e}: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
+            print(f"{e}: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
             return (CategoryResult.INTERNAL_SERVER_ERROR, None)
             
         finally:
@@ -33,8 +32,8 @@ class Category:
     
     @staticmethod
     def load_category_seq(conn: pymysql.connections.Connection, category_name: str) -> Tuple[CategoryResult, Optional[int]]:
+        cursor = conn.cursor()
         try:
-            cursor = conn.cursor()
             cursor.execute(f"""
                 SELECT category_seq FROM category WHERE name='{category_name}';
             """)
@@ -43,8 +42,7 @@ class Category:
             return (CategoryResult.SUCCESS, result[0])
         
         except Exception as e:
-            print(
-                f"{e}: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
+            print(f"{e}: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
             return (CategoryResult.INTERNAL_SERVER_ERROR, None)
          
         finally:
@@ -53,18 +51,16 @@ class Category:
             
     @staticmethod
     def check_exist_category(conn: pymysql.connections.Connection, category_name: str) -> bool:
+        cursor = conn.cursor()
         try:
-            cursor = conn.cursor()
             cursor.execute(f"""
-                SELECT name FROM category WHERE name='{category_name}';
+                SELECT * FROM category WHERE name='{category_name}';
             """)
-            result = cursor.fetchall()
             
-            return result != ()
+            return cursor.rowcount == 0
         
         except Exception as e:
-            print(
-                f"{e}: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
+            print(f"{e}: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
             return True
          
         finally:
@@ -73,26 +69,26 @@ class Category:
             
     @staticmethod
     def insert_category(conn: pymysql.connections.Connection, category_name: str) -> CategoryResult:
+        cursor = conn.cursor()
         try:
-            cursor = conn.cursor()
             cursor.execute(f"""
                 INSERT INTO category(name) VALUES ('{category_name}');
-            """)            
-            conn.commit()
+            """)
             
-            result = cursor.fetchall()
-            return CategoryResult.SUCCESS if result == () else CategoryResult.FAIL
+            if cursor.rowcount > 0:
+                return CategoryResult.SUCCESS
+            
+            else:
+                return CategoryResult.FAIL
 
         except pymysql.err.OperationalError as e:
-            print(
-                f"{e}: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
+            print(f"{e}: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
             return CategoryResult.CONFLICT
             
         except Exception as e:
-            print(
-                f"{e}: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
+            print(f"{e}: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
             return CategoryResult.INTERNAL_SERVER_ERROR
 
         finally:
+            conn.commit()
             cursor.close()
-            
