@@ -57,11 +57,11 @@ class Category:
                 SELECT * FROM category WHERE name='{category_name}';
             """)
             
-            return cursor.rowcount == 0
+            return cursor.rowcount != 0
         
         except Exception as e:
             print(f"{e}: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
-            return True
+            return False
          
         finally:
             cursor.close()
