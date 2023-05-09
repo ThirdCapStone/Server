@@ -176,6 +176,38 @@ async def logout(request: Request, id: str) -> JSONResponse:
 
 
 @account_router.patch(
+    "/update/password",
+    responses={
+        200: {
+            "content": {
+                "application/json": {
+                    "example": {"message": "정보를 수정하였습니다!"}
+                }
+            }
+        },
+        401: {
+            "content": {
+                "application/json": {
+                    "example": {"message": "정보 수정에 실패하였습니다."}
+                }
+            }
+        },
+    }
+)
+async def update_password(id: str, new_password: str) -> JSONResponse:
+    response_dict = {
+        AccountResult.SUCCESS: "정보를 수정하였습니다.",
+        AccountResult.FAIL: "정보 수정에 실패하였습니다.",
+        AccountResult.INTERNAL_SERVER_ERROR: "서버 내부 에러가 발생하였습니다."
+    }
+    
+    result = Account.forgot_password(conn, id ,new_password)
+    print(result)
+    
+    return JSONResponse({"message": response_dict[result]}, status_code=result.value)
+
+
+@account_router.patch(
     "/update",
     responses={
         200: {
@@ -350,6 +382,7 @@ async def load_account(account_seq: Optional[int] = None, id: Optional[str] = No
     result, account = Account.load_account(conn, account_seq=account_seq, id=id)
     return JSONResponse(response_dict[result], status_code=result.value)
 
+
 @account_router.post(
     "/email/send",
     responses={
@@ -371,16 +404,16 @@ async def load_account(account_seq: Optional[int] = None, id: Optional[str] = No
 )
 async def verify_email(request: Request, email: str):
     response_dict = {
-        AccountResult.SUCCESS: {"message": "이메일을 전송 했습니다."},
-        AccountResult.FAIL: {"message": "이메일을 전송하지 못했습니다."},
-        AccountResult.INTERNAL_SERVER_ERROR: {"message": "서버 내부 에러가 발생하였습니다."}
+        AccountResult.SUCCESS: "이메일을 전송 했습니다.",
+        AccountResult.FAIL: "이메일을 전송하지 못했습니다.",
+        AccountResult.INTERNAL_SERVER_ERROR: "서버 내부 에러가 발생하였습니다."
     }
     
     verify_code = str(random.randint(pow(10, 5), pow(10, 6) - 1))
     request.session[f"{email}_check_email"] = verify_code
     result = Account.send_email(email, verify_code)
     
-    return JSONResponse(response_dict[result], status_code=result.value)
+    return JSONResponse({"message": response_dict[result]}, status_code=result.value)
 
 
 @account_router.post(
@@ -404,11 +437,11 @@ async def verify_email(request: Request, email: str):
 )
 async def unverify_email(request: Request, email: str, verify_code: int):
     response_dict = {
-        AccountResult.SUCCESS: {"message": "이메일 인증에 성공하였습니다."},
-        AccountResult.FAIL: {"message": "이메일 인증에 실패하였습니다."},
-        AccountResult.INTERNAL_SERVER_ERROR: {"message": "서버 내부 에러가 발생했습니다."}
+        AccountResult.SUCCESS: "이메일 인증에 성공하였습니다.",
+        AccountResult.FAIL: "이메일 인증에 실패하였습니다.",
+        AccountResult.INTERNAL_SERVER_ERROR: "서버 내부 에러가 발생했습니다."
     }
     
     result = Account.clear_email(request, email, verify_code)
 
-    return JSONResponse(response_dict[result], status_code=result.value)
+    return JSONResponse({"message": response_dict[result]}, status_code=result.value)

@@ -147,7 +147,33 @@ class Account(BaseModel):
         except Exception as e:
             print(f"{e}: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
             return AccountResult.INTERNAL_SERVER_ERROR
+        
+        
+    @staticmethod
+    def forgot_password(conn: pymysql.connections.Connection, id: str, new_password: str) -> AccountResult:
+        cursor = conn.cursor()
+        try:
+            result, account = Account.load_account(conn, id=id)
+            if result == AccountResult.SUCCESS:
+                cursor.execute(f"""
+                    UPDATE account SET password_date='{datetime.now()}', password='{bcrypt.hashpw(new_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')}' WHERE id='{account.id}';
+                """)
+                
+                if cursor.rowcount > 0:
+                    return AccountResult.SUCCESS
+                
+                else:
+                    return AccountResult.FAIL
+                
+            return result
+            
+        except Exception as e:
+            print(f"{e}: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
+            return AccountResult.INTERNAL_SERVER_ERROR
 
+        finally:
+            conn.commit()
+            cursor.close()
 
     @staticmethod
     def check_exist_column(conn: pymysql.connections.Connection, id: Optional[str] = None, nickname: Optional[str] = None) -> bool:
