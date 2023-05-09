@@ -4,11 +4,17 @@ from pydantic import BaseModel
 from datetime import datetime
 from fastapi import Request
 from enum import Enum
+from googleapiclient.discovery import build
+from google.oauth2.credentials import Credentials
+from email.message import EmailMessage
+import base64
+import random
 import traceback
 import pymysql
 import hashlib
 import bcrypt
 import json
+import os.path
 
 def json_default(value):
     if isinstance(value, datetime):
@@ -160,6 +166,87 @@ class Account(BaseModel):
         
         finally:
             cursor.close()
+    
+    
+    @staticmethod
+    def gmail_authenticate():
+        try:
+            SCOPES = ['https://mail.google.com/']
+            CURR_DIR = os.path.dirname(os.path.realpath(__file__))
+            creds = Credentials.from_authorized_user_file(f'{CURR_DIR}/credentials.json', SCOPES)
+            return (AccountResult.SUCCESS, build('gmail', 'v1', credentials=creds))
+
+        except FileNotFoundError as e:
+            print(f"{e}: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
+            return (AccountResult.FAIL, None)
+        
+        except Exception as e:
+            print(f"{e}: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
+            return (AccountResult.INTERNAL_SERVER_ERROR, None)
+    
+    
+    @staticmethod
+    def create_message(sender: str, to: str, verify_code: int):
+        try:
+            message = EmailMessage()
+            message["From"] = sender
+            message["To"] = to
+            message["Subject"] = "무비스컴바인 인증 코드"
+            message.set_content(f"""
+                인증 코드: {verify_code}
+                인증코드를 입력해주세요.
+                이용해 주셔서 감사합니다.
+            """)
+            
+            return (AccountResult.SUCCESS, {'raw': base64.urlsafe_b64encode(message.as_bytes()).decode('utf8')})
+        
+        except Exception as e:
+            print(f"{e}: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
+            return (AccountResult.INTERNAL_SERVER_ERROR, None)
+
+
+    @staticmethod
+    def send_message(service, email: str, message: dict[str, str]):
+        try:
+            message = service.users().messages().send(userId=email, body=message).execute()
+            return AccountResult.SUCCESS
+        
+        except Exception as e:
+            print(f"{e}: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
+            return AccountResult.INTERNAL_SERVER_ERROR
+
+
+    @staticmethod
+    def send_email(email : str, verify_code: int):
+        try:
+            response, service = Account.gmail_authenticate()
+            if response == AccountResult.SUCCESS:
+                response, message = Account.create_message("moviescombine@gmail.com", email, verify_code)
+                if response == AccountResult.SUCCESS:
+                    response = Account.send_message(service, "moviescombine@gmail.com", message)
+                    return response
+                    
+            return response
+        
+        except Exception as e:
+            print(f"{e}: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
+            return AccountResult.INTERNAL_SERVER_ERROR
+        
+        
+    @staticmethod
+    def clear_email(request: Request, email: str, verify_code: int):
+        try:
+            if f"{email}_check_email" in request.session.keys():
+                if request.session[f"{email}_check_email"] == str(verify_code):
+                    del request.session[f"{email}_check_email"]
+                    return AccountResult.SUCCESS
+
+                del request.session[f"{email}_check_email"]
+            return AccountResult.FAIL
+            
+        except Exception as e:
+            print(f"{e}: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
+            return AccountResult.INTERNAL_SERVER_ERROR
 
 
     def signout(self, conn: pymysql.connections.Connection, request: Request) -> AccountResult:
