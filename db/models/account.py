@@ -8,7 +8,6 @@ from googleapiclient.discovery import build
 from google.oauth2.credentials import Credentials
 from email.message import EmailMessage
 import base64
-import random
 import traceback
 import pymysql
 import hashlib
@@ -100,6 +99,7 @@ class Account(BaseModel):
         
         finally:
             cursor.close()
+            conn.close()
 
 
     @staticmethod
@@ -112,7 +112,9 @@ class Account(BaseModel):
                 cursor.execute(f"""
                     INSERT INTO account(id, password, nickname, email, phone,  password_date) VALUES ('{id}', '{hashed_password}', '{nickname}', '{email}', '{phone}', '{datetime.now()}');
                 """)
+                
                 if cursor.rowcount > 0:
+                    conn.commit()
                     return AccountResult.CREATED
             
             return AccountResult.FAIL
@@ -126,7 +128,6 @@ class Account(BaseModel):
             return AccountResult.INTERNAL_SERVER_ERROR
         
         finally:
-            conn.commit()
             cursor.close()
             
 
@@ -174,6 +175,7 @@ class Account(BaseModel):
         finally:
             conn.commit()
             cursor.close()
+
 
     @staticmethod
     def check_exist_column(conn: pymysql.connections.Connection, id: Optional[str] = None, nickname: Optional[str] = None) -> bool:

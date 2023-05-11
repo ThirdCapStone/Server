@@ -1,11 +1,12 @@
 from fastapi.security.api_key import APIKeyHeader
-from fastapi import Depends, APIRouter
 from fastapi.responses import JSONResponse
 from db.connection import db_connection
+from fastapi import Depends, APIRouter
 from fastapi.requests import Request
 from db.models.account import *
-from auth import auth
 from fastapi import FastAPI
+from auth import auth
+import random
 
 app = FastAPI()
 
@@ -13,8 +14,6 @@ account_router = APIRouter(
     prefix="/account",
     tags=["account"],
 )
-
-conn = db_connection()
 
 @account_router.put(
     "/signup",
@@ -55,7 +54,7 @@ async def signup(model: SignUpModel) -> JSONResponse:
     nickname = model.nickname
     email = model.email
     phone = model.phone
-    result = Account.signup(conn, id, password, nickname, email, phone)
+    result = Account.signup(db_connection(), id, password, nickname, email, phone)
 
     return JSONResponse({"message": response_dict[result]}, status_code=result.value)
 
@@ -94,14 +93,14 @@ async def signout(request: Request, model: LoginModel) -> JSONResponse:
         AccountResult.INTERNAL_SERVER_ERROR: "서버 내부 에러가 발생하였습니다."
     }
 
-    result, account = Account.load_account(conn, id=model.id)
+    result, account = Account.load_account(db_connection(), id=model.id)
     if result == AccountResult.SUCCESS:
         result = account.check_session(request.session)
 
         if result == AccountResult.SUCCESS:
 
             if hashlib.sha256((model.id + account.password).encode()).hexdigest() == request.session[f"{model.id}_check_login"] and bcrypt.checkpw(model.password.encode("utf-8"), account.password.encode("utf-8")):
-                result = account.signout(conn, request)
+                result = account.signout(db_connection(), request)
 
             else:
                 result = AccountResult.FAIL
@@ -137,7 +136,7 @@ async def login(request: Request, model: LoginModel) -> JSONResponse:
 
     id = model.id
     password = model.password
-    result = Account.login(conn, id, password, request)
+    result = Account.login(db_connection(), id, password, request)
 
     return JSONResponse({"message": response_dict[result]}, status_code=result.value)
 
@@ -168,7 +167,7 @@ async def logout(request: Request, id: str) -> JSONResponse:
         AccountResult.INTERNAL_SERVER_ERROR: "서버 내부 에러가 발생하였습니다."
     }
 
-    result, account = Account.load_account(conn, id=id)
+    result, account = Account.load_account(db_connection(), id=id)
     if result == AccountResult.SUCCESS:
         result = account.logout(request)
     
@@ -201,7 +200,7 @@ async def update_password(id: str, new_password: str) -> JSONResponse:
         AccountResult.INTERNAL_SERVER_ERROR: "서버 내부 에러가 발생하였습니다."
     }
     
-    result = Account.forgot_password(conn, id ,new_password)
+    result = Account.forgot_password(db_connection(), id ,new_password)
     print(result)
     
     return JSONResponse({"message": response_dict[result]}, status_code=result.value)
@@ -249,12 +248,12 @@ async def update(request: Request, id: str, password: Optional[str] = None, nick
         AccountResult.INTERNAL_SERVER_ERROR: "서버 내부 에러가 발생하였습니다."
     }
 
-    result, account = Account.load_account(conn, id=id)
+    result, account = Account.load_account(db_connection(), id=id)
     if result == AccountResult.SUCCESS:
         result = account.check_session(request.session)
         
         if result == AccountResult.SUCCESS:
-            result = account.update_column(conn, password, nickname, email, phone)
+            result = account.update_column(db_connection(), password, nickname, email, phone)
             request.session[f"{id}_check_login"] = hashlib.sha256((id + account.password).encode()).hexdigest()
 
     return JSONResponse({"message": response_dict[result]}, status_code=result.value)
@@ -296,13 +295,13 @@ async def update_category(request: Request, category_num: int, is_add: bool) -> 
 
     result, id = Account.session_to_account_id(request)
     if result == AccountResult.SUCCESS:
-        result, account = Account.load_account(conn, id=id)
+        result, account = Account.load_account(db_connection(), id=id)
 
         if result == AccountResult.SUCCESS:
             result = account.check_session(request)
 
             if result == AccountResult.SUCCESS:
-                result = account.update_category(conn, is_add, category_num)
+                result = account.update_category(db_connection(), is_add, category_num)
 
     return JSONResponse({"message": response_dict[result]}, status_code=result.value)
 
@@ -327,7 +326,7 @@ async def update_category(request: Request, category_num: int, is_add: bool) -> 
     },
 )
 async def check(id: Optional[str] = None, nickname: Optional[str] = None) -> JSONResponse:
-    result = Account.check_exist_column(conn, id, nickname)
+    result = Account.check_exist_column(db_connection(), id, nickname)
 
     return JSONResponse({"message": "존재하지 않습니다." if not result else "존재합니다."}, status_code=AccountResult.SUCCESS.value if not result else AccountResult.CONFLICT.value)
 
@@ -379,7 +378,7 @@ async def load_account(account_seq: Optional[int] = None, id: Optional[str] = No
         AccountResult.INTERNAL_SERVER_ERROR: {"message": "서버 내부 에러가 발생하였습니다."},
     }
     
-    result, account = Account.load_account(conn, account_seq=account_seq, id=id)
+    result, account = Account.load_account(db_connection(), account_seq=account_seq, id=id)
     return JSONResponse(response_dict[result], status_code=result.value)
 
 

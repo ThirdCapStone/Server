@@ -1,4 +1,3 @@
-
 import os
 import sys
 sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
@@ -12,7 +11,6 @@ import pytest
 import json
 
 
-conn = db_connection()
 BASE_URL = "http://127.0.0.1:8000/account"
 
 @pytest.mark.asyncio
@@ -84,14 +82,14 @@ async def test_update():
             "nickname": "test_nickname2"
         }
 
-        if Account.check_exist_column(conn, nickname=body["nickname"]) == status.HTTP_200_OK:
+        if Account.check_exist_column(db_connection(), nickname=body["nickname"]) == status.HTTP_200_OK:
             response = await ac.patch("/update", data=json.dumps(body))
-            _, account = Account.load_account(conn, id=login_body["id"])
+            _, account = Account.load_account(db_connection(), id=login_body["id"])
             assert response.status_code == status.HTTP_200_OK and account.nickname == body["nickname"]
 
-        if Account.check_exist_column(conn, nickname=body["nickname"]) == status.HTTP_200_OK:
+        if Account.check_exist_column(db_connection(), nickname=body["nickname"]) == status.HTTP_200_OK:
             response = await ac.patch("/update", data=json.dumps(body))
-            _, account = Account.load_account(conn, id=login_body["id"])
+            _, account = Account.load_account(db_connection(), id=login_body["id"])
             assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
 @pytest.mark.asyncio
