@@ -175,38 +175,6 @@ async def logout(request: Request, id: str) -> JSONResponse:
 
 
 @account_router.patch(
-    "/update/password",
-    responses={
-        200: {
-            "content": {
-                "application/json": {
-                    "example": {"message": "정보를 수정하였습니다!"}
-                }
-            }
-        },
-        401: {
-            "content": {
-                "application/json": {
-                    "example": {"message": "정보 수정에 실패하였습니다."}
-                }
-            }
-        },
-    }
-)
-async def update_password(id: str, new_password: str) -> JSONResponse:
-    response_dict = {
-        AccountResult.SUCCESS: "정보를 수정하였습니다.",
-        AccountResult.FAIL: "정보 수정에 실패하였습니다.",
-        AccountResult.INTERNAL_SERVER_ERROR: "서버 내부 에러가 발생하였습니다."
-    }
-    
-    result = Account.forgot_password(db_connection(), id ,new_password)
-    print(result)
-    
-    return JSONResponse({"message": response_dict[result]}, status_code=result.value)
-
-
-@account_router.patch(
     "/update",
     responses={
         200: {
@@ -256,6 +224,37 @@ async def update(request: Request, id: str, password: Optional[str] = None, nick
             result = account.update_column(db_connection(), password, nickname, email, phone)
             request.session[f"{id}_check_login"] = hashlib.sha256((id + account.password).encode()).hexdigest()
 
+    return JSONResponse({"message": response_dict[result]}, status_code=result.value)
+
+
+@account_router.patch(
+    "/update/password",
+    responses={
+        200: {
+            "content": {
+                "application/json": {
+                    "example": {"message": "정보를 수정하였습니다!"}
+                }
+            }
+        },
+        401: {
+            "content": {
+                "application/json": {
+                    "example": {"message": "정보 수정에 실패하였습니다."}
+                }
+            }
+        },
+    }
+)
+async def update_password(request: Request, model: UpdatePasswordModel) -> JSONResponse:
+    response_dict = {
+        AccountResult.SUCCESS: "정보를 수정하였습니다.",
+        AccountResult.FAIL: "정보 수정에 실패하였습니다.",
+        AccountResult.INTERNAL_SERVER_ERROR: "서버 내부 에러가 발생하였습니다."
+    }
+    
+    result = Account.forgot_password(db_connection(), model.id , model.new_password, request)
+    
     return JSONResponse({"message": response_dict[result]}, status_code=result.value)
 
 
@@ -416,7 +415,7 @@ async def verify_email(request: Request, email: str):
 
 
 @account_router.post(
-    "/eamil/cancel",
+    "/email/cancel",
     responses={
         200: {
             "content": {

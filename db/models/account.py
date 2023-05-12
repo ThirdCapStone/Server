@@ -44,6 +44,11 @@ class LoginModel(BaseModel):
     password: str
     
 
+class UpdatePasswordModel(BaseModel):
+    id: str
+    new_password: str
+    
+
 class Account(BaseModel):
     account_seq: int
     id: str
@@ -99,7 +104,6 @@ class Account(BaseModel):
         
         finally:
             cursor.close()
-            conn.close()
 
 
     @staticmethod
@@ -151,7 +155,7 @@ class Account(BaseModel):
         
         
     @staticmethod
-    def forgot_password(conn: pymysql.connections.Connection, id: str, new_password: str) -> AccountResult:
+    def forgot_password(conn: pymysql.connections.Connection, id: str, new_password: str, request: Request) -> AccountResult:
         cursor = conn.cursor()
         try:
             result, account = Account.load_account(conn, id=id)
@@ -161,11 +165,12 @@ class Account(BaseModel):
                 """)
                 
                 if cursor.rowcount > 0:
+                    conn.commit()
                     return AccountResult.SUCCESS
                 
                 else:
                     return AccountResult.FAIL
-                
+                    
             return result
             
         except Exception as e:
@@ -173,7 +178,6 @@ class Account(BaseModel):
             return AccountResult.INTERNAL_SERVER_ERROR
 
         finally:
-            conn.commit()
             cursor.close()
 
 
