@@ -4,11 +4,8 @@ from db.connection import db_connection
 from fastapi import Depends, APIRouter
 from fastapi.requests import Request
 from db.models.account import *
-from fastapi import FastAPI
 from auth import auth
 import random
-
-app = FastAPI()
 
 account_router = APIRouter(
     prefix="/account",
@@ -408,8 +405,7 @@ async def verify_email(request: Request, email: str):
     }
     
     verify_code = str(random.randint(pow(10, 5), pow(10, 6) - 1))
-    request.session[f"{email}_check_email"] = verify_code
-    result = Account.send_email(email, verify_code)
+    result = Account.send_email(request, email, verify_code)
     
     return JSONResponse({"message": response_dict[result]}, status_code=result.value)
 

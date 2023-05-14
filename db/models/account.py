@@ -4,6 +4,8 @@ from pydantic import BaseModel
 from datetime import datetime
 from fastapi import Request
 from enum import Enum
+from google_auth_oauthlib.flow import InstalledAppFlow
+from google.auth.transport.requests import Request as GRequest
 from googleapiclient.discovery import build
 from google.oauth2.credentials import Credentials
 from email.message import EmailMessage
@@ -204,9 +206,20 @@ class Account(BaseModel):
     def gmail_authenticate():
         try:
             SCOPES = ['https://mail.google.com/']
+            creds = None
             CURR_DIR = os.path.dirname(os.path.realpath(__file__))
-            creds = Credentials.from_authorized_user_file(f'{CURR_DIR}/credentials.json', SCOPES)
+            if os.path.exists(f'{CURR_DIR}/token.json'):
+                creds = Credentials.from_authorized_user_file(f'{CURR_DIR}/token.json', SCOPES)
+            if not creds or not creds.valid:
+                if creds and creds.expired and creds.refresh_token:
+                    creds.refresh(GRequest())
+                else:
+                    flow = InstalledAppFlow.from_client_secrets_file(f'{CURR_DIR}/credentials.json', SCOPES)
+                    creds = flow.run_local_server(port=0)
+                with open(f'{CURR_DIR}/token.json', 'w') as token:
+                    token.write(creds.to_json())
             return (AccountResult.SUCCESS, build('gmail', 'v1', credentials=creds))
+        
 
         except FileNotFoundError as e:
             print(f"{e}: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
@@ -249,12 +262,13 @@ class Account(BaseModel):
 
 
     @staticmethod
-    def send_email(email : str, verify_code: int):
+    def send_email(request: Request, email : str, verify_code: int):
         try:
             response, service = Account.gmail_authenticate()
             if response == AccountResult.SUCCESS:
                 response, message = Account.create_message("moviescombine@gmail.com", email, verify_code)
                 if response == AccountResult.SUCCESS:
+                    request.session[f"{email}_check_email"] = verify_code
                     response = Account.send_message(service, "moviescombine@gmail.com", message)
                     return response
                     
