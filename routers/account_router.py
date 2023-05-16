@@ -29,20 +29,12 @@ account_router = APIRouter(
                 }
             }  
         },
-        409: {  
-            "content": {
-                "application/json": {
-                    "example": {"message": "정보가 중복됩니다."}
-                }
-            }
-        },
     },
 )
 async def signup(model: SignUpModel) -> JSONResponse:
     response_dict = {
         AccountResult.CREATED: "회원가입에 성공하였습니다.",
         AccountResult.FAIL: "회원가입에 실패하였습니다.",
-        AccountResult.CONFLICT: "정보가 중복됩니다.",
         AccountResult.INTERNAL_SERVER_ERROR: "서버 내부 에러가 발생하였습니다."
     }
 
@@ -243,14 +235,14 @@ async def update(request: Request, id: str, password: Optional[str] = None, nick
         },
     }
 )
-async def update_password(request: Request, model: UpdatePasswordModel) -> JSONResponse:
+async def update_password(model: UpdatePasswordModel) -> JSONResponse:
     response_dict = {
         AccountResult.SUCCESS: "정보를 수정하였습니다.",
         AccountResult.FAIL: "정보 수정에 실패하였습니다.",
         AccountResult.INTERNAL_SERVER_ERROR: "서버 내부 에러가 발생하였습니다."
     }
     
-    result = Account.forgot_password(db_connection(), model.id , model.new_password, request)
+    result = Account.forgot_password(db_connection(), model.id, model.email, model.new_password)
     
     return JSONResponse({"message": response_dict[result]}, status_code=result.value)
 
@@ -436,6 +428,7 @@ async def unverify_email(request: Request, email: str, verify_code: int):
         AccountResult.INTERNAL_SERVER_ERROR: "서버 내부 에러가 발생했습니다."
     }
     
+    print(request.session.keys())
     result = Account.clear_email(request, email, verify_code)
 
     return JSONResponse({"message": response_dict[result]}, status_code=result.value)

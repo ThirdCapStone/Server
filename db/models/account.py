@@ -48,6 +48,7 @@ class LoginModel(BaseModel):
 
 class UpdatePasswordModel(BaseModel):
     id: str
+    email: str
     new_password: str
     
 
@@ -114,7 +115,7 @@ class Account(BaseModel):
         try:
             hashed_password = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
-            if not Account.check_exist_column(conn, id=id) or not Account.check_exist_column(conn, nickname=nickname): 
+            if not Account.check_exist_column(conn, id=id) and not Account.check_exist_column(conn, nickname=nickname): 
                 cursor.execute(f"""
                     INSERT INTO account(id, password, nickname, email, phone,  password_date) VALUES ('{id}', '{hashed_password}', '{nickname}', '{email}', '{phone}', '{datetime.now()}');
                 """)
@@ -124,10 +125,6 @@ class Account(BaseModel):
                     return AccountResult.CREATED
             
             return AccountResult.FAIL
-        
-        except pymysql.err.IntegrityError as e:
-            print(f"{e}: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
-            return AccountResult.CONFLICT
 
         except Exception as e:
             print(f"{e}: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
@@ -157,21 +154,25 @@ class Account(BaseModel):
         
         
     @staticmethod
-    def forgot_password(conn: pymysql.connections.Connection, id: str, new_password: str, request: Request) -> AccountResult:
+    def forgot_password(conn: pymysql.connections.Connection, id: str, email: str, new_password: str) -> AccountResult:
         cursor = conn.cursor()
         try:
             result, account = Account.load_account(conn, id=id)
             if result == AccountResult.SUCCESS:
-                cursor.execute(f"""
-                    UPDATE account SET password_date='{datetime.now()}', password='{bcrypt.hashpw(new_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')}' WHERE id='{account.id}';
-                """)
-                
-                if cursor.rowcount > 0:
-                    conn.commit()
-                    return AccountResult.SUCCESS
+                if email != account.email:
+                    result = AccountResult.FAIL
                 
                 else:
-                    return AccountResult.FAIL
+                    cursor.execute(f"""
+                        UPDATE account SET password_date='{datetime.now()}', password='{bcrypt.hashpw(new_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')}' WHERE id='{account.id}';
+                    """)
+                
+                    if cursor.rowcount > 0:
+                        conn.commit()
+                        return AccountResult.SUCCESS
+                    
+                    else:
+                        return AccountResult.FAIL
                     
             return result
             
@@ -251,7 +252,7 @@ class Account(BaseModel):
 
 
     @staticmethod
-    def send_message(service, email: str, message: dict[str, str]):
+    def send_message(service, email: str, message):
         try:
             message = service.users().messages().send(userId=email, body=message).execute()
             return AccountResult.SUCCESS
@@ -262,13 +263,13 @@ class Account(BaseModel):
 
 
     @staticmethod
-    def send_email(request: Request, email : str, verify_code: int):
+    def send_email(request: Request, email : str, verify_code: str):
         try:
             response, service = Account.gmail_authenticate()
             if response == AccountResult.SUCCESS:
                 response, message = Account.create_message("moviescombine@gmail.com", email, verify_code)
                 if response == AccountResult.SUCCESS:
-                    request.session[f"{email}_check_email"] = verify_code
+                    request.session[f"{email}_check_email"] = str(verify_code)
                     response = Account.send_message(service, "moviescombine@gmail.com", message)
                     return response
                     
@@ -280,7 +281,7 @@ class Account(BaseModel):
         
         
     @staticmethod
-    def clear_email(request: Request, email: str, verify_code: int):
+    def clear_email(request: Request, email: str, verify_code: str):
         try:
             if f"{email}_check_email" in request.session.keys():
                 if request.session[f"{email}_check_email"] == str(verify_code):
