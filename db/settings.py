@@ -40,11 +40,36 @@ def create_category_table(conn: Connection) -> None:
        );
     """)
     cursor.close()
+    
+
+def create_movie_table(conn: Connection) -> None:
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE `movie` (
+            `movie_seq` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            `korean_title` TEXT NOT NULL,
+            `english_title` TEXT DEFAULT (''),
+            `summary` TEXT DEFAULT (''),
+            `main_photo_image` TEXT NULL DEFAULT NULL,
+            `release_date` DATETIME NOT NULL,
+            `running_time` INT	NULL DEFAULT NULL,
+            `cookie_count` INT	NULL DEFAULT 0,
+            `production_year` INT NOT NULL,
+            `require_adult`	BOOLEAN NULL,
+            `admission_code` TEXT NOT NULL,
+            `casts`	TEXT NULL DEFAULT ('[]'),
+            `studio` TEXT NULL DEAFULT NULL,
+            `genres` TEXT NULL DEFAULT ('[]'),
+            `total_audience_count` INT NULL	DEFAULT 0,
+            `daum_average_rating` FLOAT NULL DEFAULT 0.0,
+            INDEX (`movie_seq`)
+        );
+    """)
+    cursor.close()
 
 
 def setting(conn: Connection) -> None:
-    # , "movie", "cinema", "pay", "ticket", "score"]
-    table_list = ["account", "category"]
+    table_list = ["account", "category", "movie"]#, "theater", "pay", "ticket"]
 
     for table in table_list:
         if not check_exist_table(conn, table):
