@@ -34,7 +34,7 @@ class TheaterCrawler:
     
     @staticmethod
     def get_theater_list(sBasareaCd: str, sWideareaCd: str):
-        response = requests.post("https://www.kobis.or.kr/kobis/business/mast/thea/findTheaCdList.do?CSRFToken=HgMAHNIl1l4gllyVmp7LOG6bExrD_B6SlsXo17bfqSQ",  data={"sWideareaCd": sWideareaCd, "sBasareaCd": sBasareaCd, "CSRFToken": "HgMAHNIl1l4gllyVmp7LOG6bExrD_B6SlsXo17bfqSQ"})
+        response = requests.post("https://www.kobis.or.kr/kobis/business/mast/thea/findTheaCdList.do?CSRFToken=HgMAHNIl1l4gllyVmp7LOG6bExrD_B6SlsXo17bfqSQ",  data={"sBasareaCd": sBasareaCd, "CSRFToken": "HgMAHNIl1l4gllyVmp7LOG6bExrD_B6SlsXo17bfqSQ"})
         data = response.json()["theaCdList"]
         return data
     
@@ -45,7 +45,7 @@ class TheaterCrawler:
         address = address.replace("_샤롯데", "")
         address = address.replace("_Charlotte관", "")
         
-        url = f'https://dapi.kakao.com/v2/local/search/keyword.json?query={address}&size=1' + f"&y={y}&x={x}" if x != 0 and y != 0 else ""
+        url = f'https://dapi.kakao.com/v2/local/search/keyword.json?query={address}&size=1' + (f"&y={y}&x={x}" if x != 0 and y != 0 else "")
         
         header = {'Authorization': 'KakaoAK ' + kakao_key}
 
@@ -71,3 +71,5 @@ class TheaterCrawler:
             print("URL 주소가 잘못됐습니다.")
 
         return result
+    
+    

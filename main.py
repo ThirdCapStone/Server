@@ -1,6 +1,7 @@
 from starlette.middleware.sessions import SessionMiddleware
 from fastapi.middleware.cors import CORSMiddleware
 from routers.account_router import account_router
+from routers.theater_router import theater_router
 from fastapi.openapi.utils import get_openapi
 from db.connection import db_connection
 from db.settings import setting
@@ -57,6 +58,7 @@ app.add_middleware(
     secret_key=open("session_secret_key.txt", "r").readline(),
 )
 app.include_router(account_router)
+app.include_router(theater_router)
 app.openapi = custom_openapi
 
 conn = db_connection()
