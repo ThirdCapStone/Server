@@ -1,43 +1,20 @@
 import os, sys
 sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
 
-from selenium.common.exceptions import WebDriverException
+# from selenium.common.exceptions import WebDriverException
+# from webdriver_manager.chrome import ChromeDriverManager
+# from selenium.webdriver.chrome.options import Options
+# from selenium.webdriver.chrome.service import Service
+# from selenium import webdriver
+from typing import Optional
 from .env import kakao_key
-from webdriver_manager.chrome import ChromeDriverManager
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.chrome.service import Service
-from typing import Tuple, Optional, List, Dict, Any
-from selenium import webdriver
-from bs4 import BeautifulSoup
-from enum import Enum
-import traceback
 import requests
-import re
-from urllib import parse
-from time import sleep
 
 
-def camel_case_to_snake_case(data: str) -> str:
-    return re.sub(r'(?<!^)(?=[A-Z])', '_', data).lower()
-
-
-def remove_html_tag_from_string(data: str) -> str:
-    CLEANR = re.compile('<.*?>')
-    return re.sub(CLEANR, '', data)
-
-
-def remove_escape_character_from_string(data: str) -> str:
-    escapes = ''.join([chr(char) for char in range(1, 32)])
-    translator = str.maketrans('', '', escapes)
-    data = data.translate(translator)
-    return data
-
-
-chrome_options = Options()
-chrome_options.add_argument("--headless")
-chrome_options.add_experimental_option("detach", True)
-driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
-
+# chrome_options = Options()
+# chrome_options.add_argument("--headless")
+# chrome_options.add_experimental_option("detach", True)
+# driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
 
 class TheaterCrawler:
     @staticmethod
