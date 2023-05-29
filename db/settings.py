@@ -42,6 +42,46 @@ def create_category_table(conn: Connection) -> None:
     cursor.close()
     
 
+def create_city_table(conn: Connection) -> None:
+    cursor = conn.cursor()
+    cursor.execute(f"""
+        CREATE TABLE `city`(
+            `city_seq` BIGINT UNSIGNED NOT NULL PRIMARY KEY,
+            `city_name` TEXT NOT NULL,
+            `gu_list` TEXT DEFAULT ('[]')
+        );
+    """)
+    cursor.close()
+    
+
+def create_gu_table(conn: Connection) -> None:
+    cursor = conn.cursor()
+    cursor.execute(f"""
+        CREATE TABLE `gu`(
+            `gu_seq` BIGINT UNSIGNED NOT NULL PRIMARY KEY,
+            `gu_name` TEXT NOT NULL,
+            `theater_list` TEXT DEFAULT ('[]')
+        );
+    """)
+    cursor.close()
+    
+
+def create_theater_table(conn: Connection) -> None:
+    cursor = conn.cursor()
+    cursor.execute(f"""
+       CREATE TABLE `theater` (
+           `theater_seq` BIGINT UNSIGNED NOT NULL PRIMARY KEY,
+           `place_name` TEXT NOT NULL,
+           `address` TEXT NOT NULL,
+           `road_address` TEXT NOT NULL,
+           `lat` FLOAT NOT NULL,
+           `long` FLOAT NOT NULL,
+           INDEX (`theater_seq`)
+       );
+    """)
+    cursor.close()
+    
+
 def create_movie_table(conn: Connection) -> None:
     cursor = conn.cursor()
     cursor.execute("""
@@ -69,7 +109,7 @@ def create_movie_table(conn: Connection) -> None:
 
 
 def setting(conn: Connection) -> None:
-    table_list = ["account", "category", "movie"]#, "theater", "pay", "ticket"]
+    table_list = ["account", "category", "movie", "city", "gu" ,"theater"]
 
     for table in table_list:
         if not check_exist_table(conn, table):
