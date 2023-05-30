@@ -46,9 +46,8 @@ def create_city_table(conn: Connection) -> None:
     cursor = conn.cursor()
     cursor.execute(f"""
         CREATE TABLE `city`(
-            `city_seq` BIGINT UNSIGNED NOT NULL PRIMARY KEY,
-            `city_name` TEXT NOT NULL,
-            `gu_list` TEXT DEFAULT ('[]')
+            `city_seq` VARCHAR(7) NOT NULL PRIMARY KEY,
+            `city_name` TEXT NOT NULL
         );
     """)
     cursor.close()
@@ -58,9 +57,9 @@ def create_gu_table(conn: Connection) -> None:
     cursor = conn.cursor()
     cursor.execute(f"""
         CREATE TABLE `gu`(
-            `gu_seq` BIGINT UNSIGNED NOT NULL PRIMARY KEY,
+            `gu_seq` VARCHAR(9) NOT NULL PRIMARY KEY,
             `gu_name` TEXT NOT NULL,
-            `theater_list` TEXT DEFAULT ('[]')
+            `city_seq` VARCHAR(7) NOT NULL
         );
     """)
     cursor.close()
@@ -70,12 +69,13 @@ def create_theater_table(conn: Connection) -> None:
     cursor = conn.cursor()
     cursor.execute(f"""
        CREATE TABLE `theater` (
-           `theater_seq` BIGINT UNSIGNED NOT NULL PRIMARY KEY,
-           `place_name` TEXT NOT NULL,
-           `address` TEXT NOT NULL,
-           `road_address` TEXT NOT NULL,
-           `lat` FLOAT NOT NULL,
-           `long` FLOAT NOT NULL,
+           `theater_seq` VARCHAR(6) NOT NULL PRIMARY KEY,
+           `place_name` TEXT DEFAULT NULL,
+           `address` TEXT DEFAULT NULL,
+           `road_address` TEXT DEFAULT NULL,
+           `lat` FLOAT DEFAULT NULL,
+           `long` FLOAT DEFAULT NULL,
+           `gu_seq` VARCHAR(9) NOT NULL,
            INDEX (`theater_seq`)
        );
     """)
