@@ -9,7 +9,6 @@ from db.models.account import *
 from fastapi import FastAPI
 import uvicorn
 
-
 app = FastAPI()
 def custom_openapi():
     if not app.openapi_schema:
