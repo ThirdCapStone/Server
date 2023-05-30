@@ -2,7 +2,6 @@ from fastapi.responses import JSONResponse
 from db.models.theater import *
 from db.connection import db_connection 
 from fastapi import APIRouter
-import asyncio
 
 theater_router = APIRouter(
     prefix="/theater",
@@ -19,8 +18,3 @@ async def load_all_theater():
             theaters = Theater.get_theater_list(db_connection(), gus[g_idx]["gu_seq"])
             gus[g_idx]["theaters"] = theaters
     return JSONResponse(cities)
-
-
-@theater_router.get("/{address}")
-async def load_location():
-    return JSONResponse({"message": "Hello World"})
