@@ -1,15 +1,10 @@
 import os, sys
-import time
 sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
 
-from crawler.models import *
+from crawler.theater import *
 from db.models.theater import *
 from db.connection import db_connection
 
-#     for g_idx in range(len(gus)):
-#         theaters = TheaterCrawler.get_theater_list(gus[g_idx]["cd"], cities[c_idx]["cd"])
-#         for theater in theaters:
-#             print(TheaterCrawler.get_coordinate(f'{cities[c_idx]["cdNm"]} {gus[g_idx]["cdNm"]} {theater["cdNm"]}', 35.146792520790235, 126.92216393293315))
 
 def process_async(conn):
     cities = TheaterCrawler.get_city_list()
@@ -36,3 +31,10 @@ def run_crawler():
     conn = db_connection()
     process_async(conn)
     conn.close()
+
+from crawler.movie import MovieCrawler
+
+movie_ids = MovieCrawler.get_movie_id_list_released()
+for movie_id in movie_ids:
+    # print(MovieCrawler.get_photo_list(movie_id))
+    print(MovieCrawler.get_movie_detail(movie_id))

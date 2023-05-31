@@ -1,18 +1,62 @@
-from bs4 import BeautifulSoup
 import requests
+import re
+
+def remove_html_tag(html: str):
+    return re.sub(re.compile('<.*?>'), '', html)
 
 
-class Movie:
+class MovieCrawler:
     @staticmethod
-    def get_CSRF_Token():
-        response = requests.get("https://www.kobis.or.kr/kobis/business/mast/mvie/searchMovieList.do")
-        if response.status_code == 200:
-            soup = BeautifulSoup(response.text, "html.parser").body
-            paging_form = soup.find("form", {"action": "searchMovieList.do", "name": "pagingForm", "id": "pagingForm", "method": "post"})
-            CSRF_input = paging_form.find("input")
-            CSRF_value = CSRF_input["value"]
+    def get_movie_id_list_released():
+        url = "https://movie.daum.net/api/premovie?"
+        page = 0
+        return_list = []
+        while True:
+            page += 1
+            response = requests.get(url, params={
+                "page": page,
+                "size": 20,
+                "flag": "Y"
+            })
             
-            return CSRF_value
+            if response.status_code == 200:
+                json = response.json()
+                if json["page"]["last"]:
+                    break
+                
+                for content in json["contents"]:
+                    return_list.append(content["id"])
+                
+            else:
+                print("URL NOT FOUND")
+                return None
+        
+        return return_list
+    
+    
+    @staticmethod
+    def get_movie_detail(movie_id: int):
+        url = f"https://movie.daum.net/api/movie/{movie_id}/main"
+        response = requests.get(url)
+        if response.status_code == 200:
+            json = response.json()
+            data = json["movieCommon"]
+            return {
+                "id": movie_id,
+                "korean_title": data["titleKorean"],
+                "english_title": data["titleEnglish"],
+                "summary": remove_html_tag(data["plot"]).replace("\xa0", ""),
+                "country": data["productionCountries"],
+                "production_year": data["productionYear"],
+                "adult_option": data["adultOption"],
+                "rating": data["avgRating"],
+                "cookies": data["countCreditCookie"],
+                "genres": data["genres"],
+                "photos": MovieCrawler.get_photo_list(movie_id),
+                "image_url": data["mainPhoto"]["imageUrl"],
+                "country_movie_info": data["countryMovieInformation"],
+                "casts": json["casts"]
+            }
             
         else:
             print("URL NOT FOUND")
@@ -20,53 +64,31 @@ class Movie:
         
     
     @staticmethod
-    def get_movie_list():
-        idx = 0
-        return_list = []
+    def get_photo_list(movie_id: int):
+        url = f"https://movie.daum.net/api/movie/{movie_id}/photoList"
+        photo_list = []
+        page = 0
+        
         while True:
-            print("running")
-            idx += 1
-            response = requests.post("https://www.kobis.or.kr/kobis/business/mast/mvie/searchMovieList.do", data={
-                "CSRFToken": Movie.get_CSRF_Token(),
-                "curPage": idx,
-                "sNomal": "Y",
-                "sMulti": "Y",
-                "sIndie": "Y",
-                "useYn": "Y",
-                
+            page += 1    
+            response = requests.get(url, params={
+                "page": page,
+                "size": 12,
+                "adultFlag": "T"
             })
-            soup = BeautifulSoup(response.text, "html.parser")
             
-            movie_trs = soup.find("table", {"class": "tbl_comm"}).find("tbody").find_all("tr")
-            for movie in movie_trs:
-                tds = movie.find_all("td")
-                return_list.append({
-                    "korean_title": tds[0].text.strip(),
-                    "english_title": tds[1].text.strip(),
-                    "movie_code": tds[2].text.strip(),
-                    "created_year": tds[3].text.strip(),
-                    "from_country": tds[4].text.strip(),
-                    "movie_type": tds[5].text.strip(),
-                    "genre": tds[6].text.strip(),
-                    "release_type": tds[7].text.strip(),
-                })
-            
-            if len(movie_trs) != 10:
-                break
-            
-        return return_list
+            if response.status_code == 200:
+                json = response.json()
+                if json["page"]["last"]:
+                    break
                 
-    
-    @staticmethod
-    def get_movie_detail_info(movie_code: str):
-        response = requests.post("https://www.kobis.or.kr/kobis/business/mast/mvie/searchMovieDtl.do", data={
-            "code": movie_code,
-            "CSRFToken": Movie.get_CSRF_Token(),
-            "titleYN": "Y",
-            "isOuterReq": "false"
-        })
+                contents = json["contents"]
+                for content in contents:
+                    photo_list.append(content["imageUrl"])
 
-        soup = BeautifulSoup(response.text, "html.parser")
-        print(soup.find("div", {"class", "info"}))
-
-print(Movie.get_movie_list())
+                
+            else:
+                print("URL NOT FOUND")
+                return None
+        
+        return photo_list
