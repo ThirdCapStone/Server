@@ -34,7 +34,3 @@ def run_crawler():
 
 from crawler.movie import MovieCrawler
 
-movie_ids = MovieCrawler.get_movie_id_list_released()
-for movie_id in movie_ids:
-    # print(MovieCrawler.get_photo_list(movie_id))
-    print(MovieCrawler.get_movie_detail(movie_id))

@@ -1,94 +1,104 @@
+from bs4 import BeautifulSoup
+from fake_useragent import UserAgent
 import requests
-import re
 
-def remove_html_tag(html: str):
-    return re.sub(re.compile('<.*?>'), '', html)
-
+session = None
 
 class MovieCrawler:
     @staticmethod
-    def get_movie_id_list_released():
-        url = "https://movie.daum.net/api/premovie?"
-        page = 0
-        return_list = []
-        while True:
-            page += 1
-            response = requests.get(url, params={
-                "page": page,
-                "size": 20,
-                "flag": "Y"
-            })
-            
-            if response.status_code == 200:
-                json = response.json()
-                if json["page"]["last"]:
-                    break
-                
-                for content in json["contents"]:
-                    return_list.append(content["id"])
-                
-            else:
-                print("URL NOT FOUND")
-                return None
-        
-        return return_list
-    
-    
-    @staticmethod
-    def get_movie_detail(movie_id: int):
-        url = f"https://movie.daum.net/api/movie/{movie_id}/main"
-        response = requests.get(url)
+    def get_CSRF_Token():
+        print("detected")
+        response = requests.get("https://www.kobis.or.kr/kobis/business/mast/mvie/searchMovieList.do")
         if response.status_code == 200:
-            json = response.json()
-            data = json["movieCommon"]
-            return {
-                "id": movie_id,
-                "korean_title": data["titleKorean"],
-                "english_title": data["titleEnglish"],
-                "summary": remove_html_tag(data["plot"]).replace("\xa0", ""),
-                "country": data["productionCountries"],
-                "production_year": data["productionYear"],
-                "adult_option": data["adultOption"],
-                "rating": data["avgRating"],
-                "cookies": data["countCreditCookie"],
-                "genres": data["genres"],
-                "photos": MovieCrawler.get_photo_list(movie_id),
-                "image_url": data["mainPhoto"]["imageUrl"],
-                "country_movie_info": data["countryMovieInformation"],
-                "casts": json["casts"]
-            }
-            
+            soup = BeautifulSoup(response.text, "html.parser")
+            paging_form = soup.find("form", {"action": "searchMovieList.do", "name": "pagingForm", "id": "pagingForm", "method": "post"})
+            CSRF_input = paging_form.find("input")
+            CSRF_value = CSRF_input["value"]
+
+            return CSRF_value
+
         else:
             print("URL NOT FOUND")
             return None
         
     
     @staticmethod
-    def get_photo_list(movie_id: int):
-        url = f"https://movie.daum.net/api/movie/{movie_id}/photoList"
-        photo_list = []
-        page = 0
-        
-        while True:
-            page += 1    
-            response = requests.get(url, params={
-                "page": page,
-                "size": 12,
-                "adultFlag": "T"
-            })
+    def get_movie_page():
+        response = requests.get("https://www.kobis.or.kr/kobis/business/mast/mvie/searchMovieList.do")
+        if response.status_code == 200:
+            soup = BeautifulSoup(response.text, "html.parser")
+            movie_cnt = soup.find("div", {"class": "hd_rst"}).find("span", {"class": "total"}).find("em", {"class": "fwb"}).text
+            return (int(movie_cnt.replace(",", "")) - 1) // 10 + 1
             
-            if response.status_code == 200:
-                json = response.json()
-                if json["page"]["last"]:
-                    break
-                
-                contents = json["contents"]
-                for content in contents:
-                    photo_list.append(content["imageUrl"])
+        else:
+            print("URL NOT FOUND")
+            return None 
 
-                
-            else:
-                print("URL NOT FOUND")
-                return None
+
+    @staticmethod
+    async def get_movie_code_list(page):
+        global session
+        data={
+            "curPage": page,
+            "sNomal": "Y",
+            "sMulti": "Y",
+            "sIndie": "Y",
+            "useYn": "Y",
+        }
+        headers = {
+            "User-Agent": UserAgent().random,
+        }
+        return_list = []
+        response = None
+        print(page)
+        if session == None:
+            response = await requests.post("https://www.kobis.or.kr/kobis/business/mast/mvie/searchMovieList.do", data = data, headers=headers)
+        else:
+            response = await session.post("https://www.kobis.or.kr/kobis/business/mast/mvie/searchMovieList.do", data = data, headers=headers)
         
-        return photo_list
+        soup = BeautifulSoup(response.text, "html.parser")
+
+        movie_trs = soup.find("table", {"class": "tbl_comm"}).find("tbody").find_all("tr")
+        for movie in movie_trs:
+            tds = movie.find_all("td")
+            return_list.append(
+                tds[2].text.strip()
+            )
+
+        return return_list
+
+    
+    @staticmethod
+    def get_movie_detail_info(movie_code: str):
+        response = requests.post("https://www.kobis.or.kr/kobis/business/mast/mvie/searchMovieDtl.do", data={
+            "code": movie_code,
+            "CSRFToken": MovieCrawler.get_CSRF_Token(),
+            "titleYN": "Y",
+            "isOuterReq": "false"
+        })
+
+        soup = BeautifulSoup(response.text, "html.parser")
+        print(soup.find("div", {"class", "info"}))
+
+import asyncio
+import multiprocessing
+import time
+import tracemalloc
+
+async def main():
+    pool = multiprocessing.Pool(multiprocessing.cpu_count())
+    pool.map_async(asyncio.run, [MovieCrawler.get_movie_code_list(i) for i in range(1, MovieCrawler.get_movie_page() + 1)])
+    
+    pool.close()
+    pool.join()
+
+if __name__ == "__main__":
+    tracemalloc.start()  # Enable tracemalloc
+    start = time.time()
+    asyncio.run(main())
+    print(time.time() - start)
+
+    snapshot = tracemalloc.take_snapshot()
+    top_stats = snapshot.statistics('lineno')
+    for stat in top_stats:
+        print(stat)
