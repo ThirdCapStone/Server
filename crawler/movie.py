@@ -1,6 +1,9 @@
 from bs4 import BeautifulSoup
 from fake_useragent import UserAgent
 import requests
+import asyncio
+import traceback
+import aiohttp
 
 session = None
 
@@ -36,9 +39,8 @@ class MovieCrawler:
 
 
     @staticmethod
-    async def get_movie_code_list(page):
-        global session
-        data={
+    async def get_movie_code_list(session, page):
+        data = {
             "curPage": page,
             "sNomal": "Y",
             "sMulti": "Y",
@@ -49,23 +51,17 @@ class MovieCrawler:
             "User-Agent": UserAgent().random,
         }
         return_list = []
-        response = None
-        print(page)
-        if session == None:
-            response = await requests.post("https://www.kobis.or.kr/kobis/business/mast/mvie/searchMovieList.do", data = data, headers=headers)
-        else:
-            response = await session.post("https://www.kobis.or.kr/kobis/business/mast/mvie/searchMovieList.do", data = data, headers=headers)
-        
-        soup = BeautifulSoup(response.text, "html.parser")
+        url = "https://www.kobis.or.kr/kobis/business/mast/mvie/searchMovieList.do"
+        async with session.post(url, data=data, headers=headers) as response:
+            response_text = await response.text()
+            soup = BeautifulSoup(response_text, "html.parser")
+            movie_trs = soup.find("table", {"class": "tbl_comm"}).find("tbody").find_all("tr")
+            
+            for movie in movie_trs:
+                tds = movie.find_all("td")
+                return_list.append(tds[2].text.strip())
 
-        movie_trs = soup.find("table", {"class": "tbl_comm"}).find("tbody").find_all("tr")
-        for movie in movie_trs:
-            tds = movie.find_all("td")
-            return_list.append(
-                tds[2].text.strip()
-            )
-
-        return return_list
+            return return_list
 
     
     @staticmethod
@@ -79,26 +75,15 @@ class MovieCrawler:
 
         soup = BeautifulSoup(response.text, "html.parser")
         print(soup.find("div", {"class", "info"}))
-
-import asyncio
-import multiprocessing
-import time
-import tracemalloc
+        
 
 async def main():
-    pool = multiprocessing.Pool(multiprocessing.cpu_count())
-    pool.map_async(asyncio.run, [MovieCrawler.get_movie_code_list(i) for i in range(1, MovieCrawler.get_movie_page() + 1)])
-    
-    pool.close()
-    pool.join()
+    async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total = 1000)) as session:
+        tasks = [MovieCrawler.get_movie_code_list(session, page) for page in range(1, MovieCrawler.get_movie_page() + 1)]
+        movie_lists = await asyncio.gather(*tasks)
+        return movie_lists
 
 if __name__ == "__main__":
-    tracemalloc.start()  # Enable tracemalloc
-    start = time.time()
-    asyncio.run(main())
-    print(time.time() - start)
-
-    snapshot = tracemalloc.take_snapshot()
-    top_stats = snapshot.statistics('lineno')
-    for stat in top_stats:
-        print(stat)
+    results = sum(asyncio.run(main()), [])
+    results = set(results)
+    results.discard(None)
