@@ -224,11 +224,3 @@ async def main():
         tasks = [MovieCrawler.get_movie_detail_from_movie_code(session, movie_code) for movie_code in result]
         result = await asyncio.gather(*tasks)
         return result
-
-
-if __name__ == "__main__":
-    import time
-    start = time.time()
-    results = asyncio.run(main())
-    print(results[0])
-    print(time.time() - start)
