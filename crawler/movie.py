@@ -69,11 +69,16 @@ class MovieCrawler:
                 info2_values = soup.find_all("div", {"class": "info2"})
                 escapes = ''.join([chr(char) for char in range(1, 32)])
                 movie_infos = list(map(lambda x: x.strip().translate(str.maketrans('', '', escapes)), dds[dts.index("요약정보")].text.split("|")))
+                movie_dict["movie_code"] = movie_code
                 movie_dict["korean_movie_name"] = soup.find("strong", {"class": "tit"}).text.strip()
                 movie_dict["english_movie_name"] = soup.find("div", {"class": "hd_layer"}).find("div").text.split("(")[1].replace(")영화상영관상영중", "").translate(str.maketrans('', '', escapes))
+                movie_dict["main_poster"] = soup.find("a", {"class": "thumb"}).find("img")["src"]
+                if movie_dict["main_poster"] != None:
+                    movie_dict["main_poster"] = "https://www.kobis.or.kr" + movie_dict["main_poster"].replace("thumb_x192", "thumb_x640")
+                
                 movie_dict["movie_type"] = movie_infos[0].strip().translate(str.maketrans('', '', escapes))
                 movie_dict["movie_sort"] = movie_infos[1].strip().translate(str.maketrans('', '', escapes))
-                movie_dict["genres"] = list(map(lambda x: x.strip(), movie_infos[2].split(", ")))            
+                movie_dict["genres"] = list(map(lambda x: x.strip(), movie_infos[2].split(", ")))  
                 movie_dict["running_time"] = movie_infos[3].strip().translate(str.maketrans('', '', escapes))
                 movie_dict["required_age"] = movie_infos[4].strip().translate(str.maketrans('', '', escapes))
                 movie_dict["country"] = list(map(lambda x: x.strip().translate(str.maketrans('', '', escapes)), movie_infos[5].split(", ")))
@@ -214,13 +219,3 @@ class MovieCrawler:
                     movie_list.append(movie)
         
         return movie_list
-
-async def main():
-    async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=100000)) as session:
-        movie_name_list = MovieCrawler.get_release_movie_name_list()
-        tasks = [MovieCrawler.convert_movie_name_to_movie_code(session, movie_name) for movie_name in movie_name_list]
-        result = set(await asyncio.gather(*tasks))
-        result.discard(None)
-        tasks = [MovieCrawler.get_movie_detail_from_movie_code(session, movie_code) for movie_code in result]
-        result = await asyncio.gather(*tasks)
-        return result

@@ -31,6 +31,4 @@ def run_crawler():
     conn = db_connection()
     process_async(conn)
     conn.close()
-
-from crawler.movie import MovieCrawler
-
+    
