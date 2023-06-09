@@ -71,7 +71,11 @@ class MovieCrawler:
                 movie_infos = list(map(lambda x: x.strip().translate(str.maketrans('', '', escapes)), dds[dts.index("요약정보")].text.split("|")))
                 movie_dict["movie_code"] = movie_code
                 movie_dict["korean_movie_name"] = soup.find("strong", {"class": "tit"}).text.strip()
-                movie_dict["english_movie_name"] = soup.find("div", {"class": "hd_layer"}).find("div").text.split("(")[1].replace(")영화상영관상영중", "").translate(str.maketrans('', '', escapes))
+                try:
+                    movie_dict["english_movie_name"] = soup.find("div", {"class": "hd_layer"}).find("div").text.split("(")[1].replace(")영화상영관상영중", "").translate(str.maketrans('', '', escapes))
+               
+                except IndexError:
+                    movie_dict["english_movie_name"] = None
                 movie_dict["main_poster"] = soup.find("a", {"class": "thumb"}).find("img")["src"]
                 if movie_dict["main_poster"] != None:
                     movie_dict["main_poster"] = "https://www.kobis.or.kr" + movie_dict["main_poster"].replace("thumb_x192", "thumb_x640")
@@ -164,11 +168,13 @@ class MovieCrawler:
             soup = BeautifulSoup(html, "html.parser")
             table = soup.find("div", {"class":"info1"})
             
-            people = table.find("a")
-            if people != None:
-                people_image="https://www.kobis.or.kr"+ people.find("img")["src"]
+            try:
+                people_image="https://www.kobis.or.kr"+ table.find("a").find("img")["src"]
 
-            else:
+            except AttributeError:
+                people_image = None
+                
+            except TypeError:
                 people_image = None
 
             return people_image
