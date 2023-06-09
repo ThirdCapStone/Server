@@ -13,12 +13,12 @@ async def get_movie_list():
         result = await asyncio.gather(*tasks)
         return result
 
-movie_list = asyncio.run(get_movie_list())
-
 movie_router = APIRouter(
     prefix="/movie",
     tags=["movie"],
 )
+
+movie_list = asyncio.run(get_movie_list())
 
 @movie_router.get("/")
 async def get_movie_list():
@@ -28,4 +28,3 @@ async def get_movie_list():
 @movie_router.get("/{movie_code}")
 async def get_movie_detail(movie_code: int):
     return list(filter(lambda x: x["movie_code"] == movie_code, movie_list))[0]
-
