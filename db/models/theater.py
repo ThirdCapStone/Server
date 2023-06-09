@@ -91,6 +91,23 @@ class Theater:
         finally:
             cursor.close()
     
+    
+    @staticmethod
+    def get_all_theater_code(conn):
+        cursor = conn.cursor()
+        try:
+            cursor.execute(f"""
+                SELECT theater_seq FROM theater;
+            """)
+            
+            return cursor.fetchall()
+            
+        except:
+            pass
+        
+        finally:
+            cursor.close()
+    
 
     @staticmethod
     def insert_city_info(conn: Connection, city_seq: str, city_name: str) -> Optional[any]:
@@ -161,11 +178,11 @@ class Theater:
                 return TheaterResult.FAIL
         
         except IntegrityError as e:
-            print(f"{e}: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
+            # print(f"{e}: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
             return TheaterResult.CONFLICT
             
         except Exception as e:
-            print(f"{e}: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
+            # print(f"{e}: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
             return TheaterResult.INTERNAL_SERVER_ERROR
             
         finally:
