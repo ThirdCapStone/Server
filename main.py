@@ -2,6 +2,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from fastapi.middleware.cors import CORSMiddleware
 from routes.account_router import account_router
 from routes.theater_router import theater_router
+from routes.schedule_router import schedule_router
 from routes.movie_router import movie_router
 from fastapi.openapi.utils import get_openapi
 from db.connection import db_connection
@@ -60,6 +61,7 @@ app.add_middleware(
 app.include_router(account_router)
 app.include_router(theater_router)
 app.include_router(movie_router)
+app.include_router(schedule_router)
 app.openapi = custom_openapi
 
 conn = db_connection()
